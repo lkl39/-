@@ -1,23 +1,10 @@
 import Link from "next/link";
-import { SubmitButton } from "@/components/auth/submit-button";
-import { MetricCard } from "@/components/dashboard/metric-card";
-import { ModeComparison } from "@/components/dashboard/mode-comparison";
-import { RingChart } from "@/components/dashboard/ring-chart";
-import { SectionCard } from "@/components/dashboard/section-card";
-import { StatusPill } from "@/components/dashboard/status-pill";
 import { signOutAction } from "@/app/auth/actions";
 import { createLogUploadAction } from "@/app/logs/actions";
-import {
-  integrationPoints,
-  logIncidents,
-  metrics,
-  modeComparisons,
-  modes,
-  repairSuggestions,
-  riskBreakdown,
-  timelineSteps,
-  typeBreakdown,
-} from "@/lib/dashboard-data";
+import { createDetectionRuleAction } from "@/app/rules/actions";
+import { SubmitButton } from "@/components/auth/submit-button";
+import { SectionCard } from "@/components/dashboard/section-card";
+import { StatusPill } from "@/components/dashboard/status-pill";
 
 type DashboardHomeProps = {
   userEmail: string;
@@ -34,6 +21,26 @@ type DashboardHomeProps = {
     lineCount: number;
     uploadedAt: string;
   }[];
+  recentErrors: {
+    id: string;
+    rawText: string;
+    errorType: string;
+    detectedBy: string;
+    lineNumber: number;
+    createdAt: string;
+  }[];
+  defaultRuleCount: number;
+  dynamicRules: {
+    id: string;
+    name: string;
+    pattern: string;
+    matchType: string;
+    errorType: string;
+    riskLevel: string;
+    sourceTypes: string[];
+    enabled: boolean;
+    updatedAt: string;
+  }[];
 };
 
 export function DashboardHome({
@@ -42,15 +49,41 @@ export function DashboardHome({
   status,
   message,
   recentLogs,
+  recentErrors,
+  defaultRuleCount,
+  dynamicRules,
 }: DashboardHomeProps) {
   const tone =
     status === "error" ? "danger" : status === "success" ? "success" : "info";
+  const enabledDynamicRuleCount = dynamicRules.filter((rule) => rule.enabled).length;
+  const summaryCards = [
+    {
+      label: "最近上传",
+      value: `${recentLogs.length}`,
+      hint: "最近 6 次任务",
+    },
+    {
+      label: "最近异常",
+      value: `${recentErrors.length}`,
+      hint: "最近 10 条命中",
+    },
+    {
+      label: "内置规则",
+      value: `${defaultRuleCount}`,
+      hint: "代码默认规则集",
+    },
+    {
+      label: "动态规则",
+      value: `${enabledDynamicRuleCount}`,
+      hint: "来自 detection_rules",
+    },
+  ];
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.12),_transparent_28%),linear-gradient(180deg,_#07111f_0%,_#0b1728_55%,_#09131f_100%)] text-slate-100">
       <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 px-5 py-6 md:px-8 lg:px-10">
-        <section className="rounded-[32px] border border-white/10 bg-white/6 p-4 shadow-[0_20px_70px_rgba(3,9,20,0.32)] backdrop-blur">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <section className="rounded-[32px] border border-white/10 bg-white/6 p-5 shadow-[0_20px_70px_rgba(3,9,20,0.32)] backdrop-blur">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,_rgba(34,211,238,0.95),_rgba(250,204,21,0.92))] text-sm font-bold text-slate-950">
                 LA
@@ -59,9 +92,9 @@ export function DashboardHome({
                 <p className="text-xs uppercase tracking-[0.2em] text-cyan-200/80">
                   Authenticated Session
                 </p>
-                <h2 className="mt-1 text-xl font-semibold text-white">
-                  已进入智能日志分析工作台
-                </h2>
+                <h1 className="mt-1 text-xl font-semibold text-white">
+                  智能日志分析与运维辅助决策台
+                </h1>
                 <p className="mt-1 text-sm text-slate-400">
                   当前账号：{userEmail}
                   {teamName ? ` · 团队：${teamName}` : ""}
@@ -70,7 +103,7 @@ export function DashboardHome({
             </div>
 
             <div className="flex flex-wrap gap-3">
-              <StatusPill label="Supabase Session Active" tone="success" />
+              <StatusPill label="Supabase Online" tone="success" />
               <Link
                 href="/"
                 className="rounded-full border border-white/12 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-cyan-300/60 hover:bg-white/6"
@@ -101,159 +134,206 @@ export function DashboardHome({
           </section>
         ) : null}
 
-        <section className="overflow-hidden rounded-[32px] border border-white/10 bg-white/6 shadow-[0_24px_80px_rgba(3,9,20,0.35)] backdrop-blur">
-          <div className="grid gap-6 px-6 py-6 lg:grid-cols-[1.2fr_0.8fr] lg:px-8 lg:py-8">
-            <div className="space-y-6">
-              <div className="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.24em] text-cyan-200/80">
-                <StatusPill label="Frontend Skeleton" tone="info" />
-                <span>Next.js App Router</span>
-                <span>Supabase / LLM / RAG Ready</span>
-              </div>
-              <div className="max-w-3xl space-y-4">
-                <p className="text-sm font-medium text-cyan-200/90">
-                  智能日志分析与运维辅助决策系统
-                </p>
-                <h1 className="text-4xl font-semibold tracking-tight text-white md:text-5xl">
-                  先把日志看见，再把异常解释清楚。
-                </h1>
-                <p className="max-w-2xl text-sm leading-7 text-slate-300 md:text-base">
-                  当前版本为前端骨架演示页，已经把日志上传、分析模式、异常总览、
-                  风险结构、模式对比、异常明细和修复建议这些核心区域搭好，后续只需要把
-                  Supabase、规则引擎、RAG 和大模型接口接进来。
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  className="rounded-full bg-cyan-300 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200"
-                >
-                  选择日志文件
-                </button>
-                <button
-                  type="button"
-                  className="rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-slate-100 transition hover:border-cyan-200/70 hover:bg-white/6"
-                >
-                  查看分析流程
-                </button>
-              </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-1">
-              <SectionCard
-                eyebrow="Upload Console"
-                title="日志接入区"
-                description="现在已经接到真实 logs 表，上传后会写入 Supabase。"
-              >
-                <form action={createLogUploadAction} className="space-y-4">
-                  <label className="block space-y-2">
-                    <span className="text-sm font-medium text-slate-200">
-                      选择日志文件
-                    </span>
-                    <input
-                      name="logFile"
-                      type="file"
-                      accept=".log,.txt,.json,.out,.csv,text/plain,application/json"
-                      className="w-full rounded-2xl border border-dashed border-cyan-200/30 bg-slate-950/45 px-4 py-4 text-sm text-slate-200 file:mr-4 file:rounded-full file:border-0 file:bg-cyan-300 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-slate-950"
-                    />
-                  </label>
-                  <div className="grid gap-3 text-sm text-slate-300">
-                    <label className="space-y-2">
-                      <span className="block text-sm font-medium text-slate-200">
-                        日志来源
-                      </span>
-                      <select
-                        name="sourceType"
-                        defaultValue="nginx"
-                        className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
-                      >
-                        <option value="nginx">Nginx</option>
-                        <option value="system">System</option>
-                        <option value="postgres">Postgres</option>
-                        <option value="application">Application</option>
-                        <option value="custom">Custom</option>
-                      </select>
-                    </label>
-                    <label className="space-y-2">
-                      <span className="block text-sm font-medium text-slate-200">
-                        分析模式
-                      </span>
-                      <select
-                        name="analysisMode"
-                        defaultValue="hybrid"
-                        className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
-                      >
-                        <option value="hybrid">Hybrid</option>
-                        <option value="rule_only">Rule Only</option>
-                        <option value="model_only">Model Only</option>
-                      </select>
-                    </label>
-                  </div>
-                  <div className="rounded-2xl bg-white/5 px-4 py-3 text-xs leading-6 text-slate-400">
-                    当前会先写入日志元数据到 `logs` 表。后续再接 Supabase Storage、
-                    规则检测和分析任务流。
-                  </div>
-                  <SubmitButton
-                    idleText="上传并登记日志"
-                    pendingText="正在写入 logs..."
-                    className="w-full rounded-2xl bg-cyan-300 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200"
-                  />
-                </form>
-              </SectionCard>
-
-              <SectionCard
-                eyebrow="Analysis Modes"
-                title="分析模式"
-                description="保留 PRD 中要求的三种模式，默认突出 Hybrid。"
-              >
-                <div className="space-y-3">
-                  {modes.map((mode) => (
-                    <div
-                      key={mode.name}
-                      className={`rounded-2xl border px-4 py-4 transition ${
-                        mode.active
-                          ? "border-cyan-300/60 bg-cyan-300/10"
-                          : "border-white/10 bg-white/4"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold text-white">
-                            {mode.name}
-                          </p>
-                          <p className="mt-1 text-xs leading-6 text-slate-400">
-                            {mode.description}
-                          </p>
-                        </div>
-                        <StatusPill
-                          label={mode.active ? "默认" : "可切换"}
-                          tone={mode.active ? "success" : "neutral"}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </SectionCard>
-            </div>
-          </div>
-        </section>
-
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {metrics.map((metric) => (
-            <MetricCard key={metric.label} {...metric} />
+          {summaryCards.map((card) => (
+            <div
+              key={card.label}
+              className="rounded-[28px] border border-white/10 bg-white/6 p-5 shadow-[0_18px_55px_rgba(2,8,18,0.3)]"
+            >
+              <p className="text-xs uppercase tracking-[0.18em] text-cyan-200/80">
+                {card.label}
+              </p>
+              <p className="mt-4 text-3xl font-semibold text-white">{card.value}</p>
+              <p className="mt-2 text-sm text-slate-400">{card.hint}</p>
+            </div>
           ))}
         </section>
 
-        <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+        <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
           <SectionCard
-            eyebrow="Uploads"
+            eyebrow="Upload"
+            title="日志上传与规则检测"
+            description="原始日志先进入 Supabase Storage，再写入 logs 表并触发第一层规则检测。"
+          >
+            <form action={createLogUploadAction} className="space-y-4">
+              <label className="block space-y-2">
+                <span className="text-sm font-medium text-slate-200">日志文件</span>
+                <input
+                  name="logFile"
+                  type="file"
+                  accept=".log,.txt,.json,.out,.csv,text/plain,application/json"
+                  className="w-full rounded-2xl border border-dashed border-cyan-200/30 bg-slate-950/45 px-4 py-4 text-sm text-slate-200 file:mr-4 file:rounded-full file:border-0 file:bg-cyan-300 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-slate-950"
+                />
+              </label>
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="space-y-2">
+                  <span className="block text-sm font-medium text-slate-200">
+                    日志来源
+                  </span>
+                  <select
+                    name="sourceType"
+                    defaultValue="nginx"
+                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                  >
+                    <option value="nginx">Nginx</option>
+                    <option value="system">System</option>
+                    <option value="postgres">Postgres</option>
+                    <option value="application">Application</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                </label>
+                <label className="space-y-2">
+                  <span className="block text-sm font-medium text-slate-200">
+                    分析模式
+                  </span>
+                  <select
+                    name="analysisMode"
+                    defaultValue="hybrid"
+                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                  >
+                    <option value="hybrid">Hybrid</option>
+                    <option value="rule_only">Rule Only</option>
+                    <option value="model_only">Model Only</option>
+                  </select>
+                </label>
+              </div>
+              <div className="rounded-2xl bg-white/5 px-4 py-3 text-xs leading-6 text-slate-400">
+                当前上传链路已经稳定：Storage 落原始文件，`logs` 记录元数据，`log_errors`
+                记录规则命中的异常片段。
+              </div>
+              <SubmitButton
+                idleText="上传并分析日志"
+                pendingText="正在上传并执行规则检测..."
+                className="w-full rounded-2xl bg-cyan-300 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200"
+              />
+            </form>
+          </SectionCard>
+
+          <SectionCard
+            eyebrow="Rules"
+            title="动态规则录入"
+            description="这里写入 detection_rules。新规则会参与后续上传日志的第一层检测。"
+          >
+            <form action={createDetectionRuleAction} className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="space-y-2">
+                  <span className="block text-sm font-medium text-slate-200">
+                    规则名称
+                  </span>
+                  <input
+                    name="name"
+                    type="text"
+                    placeholder="例如：Billing Connection Refused"
+                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500"
+                  />
+                </label>
+                <label className="space-y-2">
+                  <span className="block text-sm font-medium text-slate-200">
+                    匹配类型
+                  </span>
+                  <select
+                    name="matchType"
+                    defaultValue="keyword"
+                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                  >
+                    <option value="keyword">Keyword</option>
+                    <option value="regex">Regex</option>
+                  </select>
+                </label>
+              </div>
+
+              <label className="block space-y-2">
+                <span className="text-sm font-medium text-slate-200">匹配模式</span>
+                <input
+                  name="pattern"
+                  type="text"
+                  placeholder="例如：connection refused 或 \\b5\\d\\d\\b"
+                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500"
+                />
+              </label>
+
+              <div className="grid gap-3 md:grid-cols-3">
+                <label className="space-y-2">
+                  <span className="block text-sm font-medium text-slate-200">
+                    异常类型
+                  </span>
+                  <input
+                    name="errorType"
+                    type="text"
+                    placeholder="例如：connection_refused"
+                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500"
+                  />
+                </label>
+                <label className="space-y-2">
+                  <span className="block text-sm font-medium text-slate-200">
+                    风险等级
+                  </span>
+                  <select
+                    name="riskLevel"
+                    defaultValue="medium"
+                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                </label>
+                <label className="space-y-2">
+                  <span className="block text-sm font-medium text-slate-200">
+                    Regex 标志
+                  </span>
+                  <input
+                    name="flags"
+                    type="text"
+                    placeholder="例如：i"
+                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500"
+                  />
+                </label>
+              </div>
+
+              <label className="block space-y-2">
+                <span className="text-sm font-medium text-slate-200">
+                  适用来源
+                </span>
+                <input
+                  name="sourceTypes"
+                  type="text"
+                  placeholder="例如：nginx,application,custom"
+                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500"
+                />
+              </label>
+
+              <label className="block space-y-2">
+                <span className="text-sm font-medium text-slate-200">说明</span>
+                <textarea
+                  name="description"
+                  rows={3}
+                  placeholder="记录该规则适用的典型场景，方便后续团队维护。"
+                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500"
+                />
+              </label>
+
+              <div className="rounded-2xl bg-white/5 px-4 py-3 text-xs leading-6 text-slate-400">
+                建议先沉淀高频、稳定、重复出现的异常模式。低置信度或偶发问题，后续进入人工复核和候选规则更合理。
+              </div>
+              <SubmitButton
+                idleText="保存动态规则"
+                pendingText="正在写入 detection_rules..."
+                className="w-full rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-slate-200"
+              />
+            </form>
+          </SectionCard>
+        </section>
+
+        <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+          <SectionCard
+            eyebrow="Logs"
             title="最近上传"
-            description="这些记录已经来自 Supabase logs 表，而不是静态假数据。"
+            description="这里展示真实的 logs 表数据，用来确认上传链路和任务状态。"
           >
             <div className="space-y-3">
               {recentLogs.length === 0 ? (
-                <div className="rounded-3xl border border-dashed border-white/10 bg-slate-950/30 px-4 py-8 text-center text-sm text-slate-400">
-                  还没有上传记录。先上传一份日志，确认数据库写入链路已经打通。
-                </div>
+                <EmptyState text="还没有上传记录。先上传一份日志，确认 Storage 和 logs 写入都正常。" />
               ) : (
                 recentLogs.map((log) => (
                   <div
@@ -262,15 +342,13 @@ export function DashboardHome({
                   >
                     <div className="flex flex-wrap items-start justify-between gap-4">
                       <div>
-                        <p className="text-sm font-semibold text-white">
-                          {log.fileName}
-                        </p>
+                        <p className="text-sm font-semibold text-white">{log.fileName}</p>
                         <p className="mt-1 text-xs leading-6 text-slate-400">
-                          {log.sourceType} · {log.analysisMode} ·{" "}
-                          {formatBytes(log.fileSize)} · {log.lineCount} lines
+                          {log.sourceType} · {log.analysisMode} · {formatBytes(log.fileSize)} ·{" "}
+                          {log.lineCount} lines
                         </p>
                       </div>
-                      <StatusPill label={log.status} tone="info" />
+                      <StatusPill label={log.status} tone={getStatusTone(log.status)} />
                     </div>
                     <p className="mt-3 text-xs text-slate-500">
                       {formatTimestamp(log.uploadedAt)}
@@ -282,187 +360,115 @@ export function DashboardHome({
           </SectionCard>
 
           <SectionCard
-            eyebrow="Pipeline"
-            title="分析流程"
-            description="前端先展示流程链路，后续把各步骤状态接到真实任务执行记录。"
-          >
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {timelineSteps.map((step, index) => (
-                <div
-                  key={step.title}
-                  className="rounded-3xl border border-white/8 bg-slate-950/40 p-4"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-200/80">
-                      Step {index + 1}
-                    </span>
-                    <StatusPill label={step.status} tone={step.tone} />
-                  </div>
-                  <p className="mt-4 text-base font-semibold text-white">
-                    {step.title}
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-slate-400">
-                    {step.description}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </SectionCard>
-
-          <SectionCard
-            eyebrow="Integration"
-            title="接口预留"
-            description="这些位置先在页面上明确，后面接真实 API 时不会反复改结构。"
+            eyebrow="Rule Set"
+            title="当前动态规则"
+            description="这里只显示最近更新的动态规则。它们会和内置规则一起参与日志检测。"
           >
             <div className="space-y-3">
-              {integrationPoints.map((item) => (
-                <div
-                  key={item.title}
-                  className="rounded-2xl border border-white/8 bg-white/5 px-4 py-4"
-                >
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-semibold text-white">
-                        {item.title}
-                      </p>
-                      <p className="mt-1 text-xs leading-6 text-slate-400">
-                        {item.description}
-                      </p>
-                    </div>
-                    <code className="rounded-full bg-slate-950/70 px-3 py-1 text-xs text-cyan-200">
-                      {item.endpoint}
-                    </code>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </SectionCard>
-        </section>
-
-        <section className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr_1fr]">
-          <SectionCard
-            eyebrow="Overview"
-            title="异常类型分布"
-            description="后续可替换为 Recharts 柱状图，当前先用静态条形布局确定空间。"
-          >
-            <div className="space-y-4">
-              {typeBreakdown.map((item) => (
-                <div key={item.label} className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-300">{item.label}</span>
-                    <span className="font-semibold text-white">
-                      {item.value}
-                    </span>
-                  </div>
-                  <div className="h-2.5 overflow-hidden rounded-full bg-white/8">
-                    <div
-                      className="h-full rounded-full bg-[linear-gradient(90deg,_rgba(34,211,238,0.95),_rgba(250,204,21,0.95))]"
-                      style={{ width: `${item.percent}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </SectionCard>
-
-          <SectionCard
-            eyebrow="Risk"
-            title="风险等级结构"
-            description="高风险事件优先突出，低置信度结果后续会叠加 Uncertain 标记。"
-          >
-            <div className="grid items-center gap-6 md:grid-cols-[180px_1fr]">
-              <RingChart segments={riskBreakdown} />
-              <div className="space-y-3">
-                {riskBreakdown.map((item) => (
+              {dynamicRules.length === 0 ? (
+                <EmptyState text="还没有动态规则。你现在可以直接在左侧录入第一条团队规则。" />
+              ) : (
+                dynamicRules.map((rule) => (
                   <div
-                    key={item.label}
-                    className="flex items-center justify-between rounded-2xl bg-white/5 px-4 py-3 text-sm"
+                    key={rule.id}
+                    className="rounded-3xl border border-white/8 bg-white/5 p-4"
                   >
-                    <div className="flex items-center gap-3">
-                      <span
-                        className="h-3 w-3 rounded-full"
-                        style={{ backgroundColor: item.color }}
-                      />
-                      <span className="text-slate-300">{item.label}</span>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-semibold text-white">{rule.name}</p>
+                          <StatusPill
+                            label={rule.enabled ? "enabled" : "disabled"}
+                            tone={rule.enabled ? "success" : "neutral"}
+                          />
+                          <StatusPill
+                            label={rule.riskLevel}
+                            tone={getRiskTone(rule.riskLevel)}
+                          />
+                        </div>
+                        <p className="mt-2 break-all font-mono text-xs text-cyan-200">
+                          {rule.pattern}
+                        </p>
+                        <p className="mt-2 text-xs leading-6 text-slate-400">
+                          {rule.matchType} · {rule.errorType}
+                          {rule.sourceTypes.length > 0
+                            ? ` · ${rule.sourceTypes.join(", ")}`
+                            : " · all sources"}
+                        </p>
+                      </div>
+                      <p className="text-xs text-slate-500">
+                        {formatTimestamp(rule.updatedAt)}
+                      </p>
                     </div>
-                    <span className="font-semibold text-white">
-                      {item.value}
-                    </span>
                   </div>
-                ))}
-              </div>
+                ))
+              )}
             </div>
-          </SectionCard>
-
-          <SectionCard
-            eyebrow="Experiment"
-            title="模式对比"
-            description="保留 PRD 中的实验视角，后续直接绑定统计数据。"
-          >
-            <ModeComparison items={modeComparisons} />
           </SectionCard>
         </section>
 
-        <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+        <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
           <SectionCard
             eyebrow="Incidents"
-            title="异常详情"
-            description="后续可以替换成可分页、可筛选、可人工复核的异常明细表。"
+            title="最近异常命中"
+            description="这里展示真实的 log_errors 数据。下一步可以在这里继续接人工复核、候选规则和分析结果。"
           >
             <div className="overflow-hidden rounded-3xl border border-white/8">
-              <div className="grid grid-cols-[1.1fr_0.9fr_0.5fr_0.7fr] gap-3 bg-white/7 px-4 py-3 text-xs uppercase tracking-[0.18em] text-slate-400">
-                <span>日志片段</span>
-                <span>原因判断</span>
-                <span>风险</span>
-                <span>置信度</span>
+              <div className="grid grid-cols-[1.2fr_0.8fr_0.6fr_0.5fr] gap-3 bg-white/7 px-4 py-3 text-xs uppercase tracking-[0.18em] text-slate-400">
+                <span>异常片段</span>
+                <span>异常类型</span>
+                <span>检测来源</span>
+                <span>行号</span>
               </div>
               <div className="divide-y divide-white/6 bg-slate-950/35">
-                {logIncidents.map((incident) => (
-                  <div
-                    key={incident.id}
-                    className="grid grid-cols-[1.1fr_0.9fr_0.5fr_0.7fr] gap-3 px-4 py-4 text-sm"
-                  >
-                    <div>
-                      <p className="font-medium text-white">{incident.message}</p>
-                      <p className="mt-1 text-xs text-slate-500">
-                        {incident.source}
-                      </p>
-                    </div>
-                    <p className="text-slate-300">{incident.cause}</p>
-                    <div>
-                      <StatusPill label={incident.risk} tone={incident.tone} />
-                    </div>
-                    <div className="text-sm font-semibold text-white">
-                      {incident.confidence}
-                    </div>
+                {recentErrors.length === 0 ? (
+                  <div className="px-4 py-8 text-center text-sm text-slate-400">
+                    还没有规则命中的异常。可先上传一份包含 `error`、`failed`、`timeout` 或 `500`
+                    的日志做测试。
                   </div>
-                ))}
+                ) : (
+                  recentErrors.map((error) => (
+                    <div
+                      key={error.id}
+                      className="grid grid-cols-[1.2fr_0.8fr_0.6fr_0.5fr] gap-3 px-4 py-4 text-sm"
+                    >
+                      <div>
+                        <p className="line-clamp-2 font-medium text-white">{error.rawText}</p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {formatTimestamp(error.createdAt)}
+                        </p>
+                      </div>
+                      <p className="text-slate-300">{error.errorType}</p>
+                      <div>
+                        <StatusPill label={error.detectedBy} tone="info" />
+                      </div>
+                      <div className="text-sm font-semibold text-white">
+                        {error.lineNumber || "-"}
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </SectionCard>
 
           <SectionCard
-            eyebrow="Actions"
-            title="修复建议与人工复核"
-            description="这里会承接大模型输出、知识库命中结果和人工备注。"
+            eyebrow="Next Step"
+            title="后续闭环预留"
+            description="你前面提到的稳定性要求，我已经按不会破坏现有链路的顺序预留好了。"
           >
             <div className="space-y-3">
-              {repairSuggestions.map((item) => (
+              {[
+                "规则未命中或模型低置信度时，进入 review_cases。",
+                "人工确认后，可决定写入 rule_candidates 或 knowledge_base。",
+                "detection_rules 只接收稳定、可复用的问题模式，避免规则库变脏。",
+                "analysis_results 下一步再接，不会影响现在已跑通的上传与检测。",
+              ].map((item) => (
                 <div
-                  key={item.title}
-                  className="rounded-3xl border border-white/8 bg-white/5 p-4"
+                  key={item}
+                  className="rounded-3xl border border-white/8 bg-white/5 px-4 py-4 text-sm leading-6 text-slate-300"
                 >
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-semibold text-white">
-                        {item.title}
-                      </p>
-                      <p className="mt-1 text-xs leading-6 text-slate-400">
-                        {item.detail}
-                      </p>
-                    </div>
-                    <StatusPill label={item.tag} tone={item.tone} />
-                  </div>
+                  {item}
                 </div>
               ))}
             </div>
@@ -470,6 +476,14 @@ export function DashboardHome({
         </section>
       </div>
     </main>
+  );
+}
+
+function EmptyState({ text }: { text: string }) {
+  return (
+    <div className="rounded-3xl border border-dashed border-white/10 bg-slate-950/30 px-4 py-8 text-center text-sm text-slate-400">
+      {text}
+    </div>
   );
 }
 
@@ -492,11 +506,39 @@ function formatBytes(value: number) {
 
 function formatTimestamp(value: string) {
   if (!value) {
-    return "No upload time";
+    return "No timestamp";
   }
 
   return new Intl.DateTimeFormat("zh-CN", {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+function getRiskTone(riskLevel: string) {
+  if (riskLevel === "high") {
+    return "danger";
+  }
+
+  if (riskLevel === "low") {
+    return "success";
+  }
+
+  return "warning";
+}
+
+function getStatusTone(status: string) {
+  if (status === "completed") {
+    return "success";
+  }
+
+  if (status === "failed") {
+    return "danger";
+  }
+
+  if (status === "processing") {
+    return "warning";
+  }
+
+  return "info";
 }

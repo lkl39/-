@@ -3,6 +3,7 @@ type SectionCardProps = {
   title: string;
   description: string;
   children: React.ReactNode;
+  className?: string;
 };
 
 export function SectionCard({
@@ -10,9 +11,12 @@ export function SectionCard({
   title,
   description,
   children,
+  className,
 }: SectionCardProps) {
   return (
-    <section className="rounded-[30px] border border-white/10 bg-white/6 p-5 shadow-[0_18px_55px_rgba(2,8,18,0.3)]">
+    <section
+      className={`dashboard-panel rounded-[30px] border border-white/10 bg-white/6 p-5 shadow-[0_18px_55px_rgba(2,8,18,0.3)] ${className ?? ""}`}
+    >
       <div className="mb-5">
         <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200/80">
           {eyebrow}

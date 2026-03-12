@@ -34,3 +34,38 @@ body {
   background: rgba(34, 211, 238, 0.35);
   color: #f8fafc;
 }
+
+.dashboard-panel {
+  position: relative;
+  transition:
+    transform 220ms ease,
+    border-color 220ms ease,
+    box-shadow 220ms ease,
+    background-color 220ms ease;
+  will-change: transform;
+}
+
+.dashboard-panel:hover {
+  transform: translateY(-6px);
+  border-color: rgba(103, 232, 249, 0.28);
+  box-shadow:
+    0 26px 80px rgba(2, 8, 18, 0.38),
+    0 0 0 1px rgba(34, 211, 238, 0.06);
+}
+
+.dashboard-panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 220ms ease;
+  background:
+    radial-gradient(circle at top, rgba(34, 211, 238, 0.16), transparent 36%),
+    linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.02));
+}
+
+.dashboard-panel:hover::after {
+  opacity: 1;
+}

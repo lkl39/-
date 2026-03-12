@@ -1,6 +1,7 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
+import { analyzeIncidents } from "@/lib/analysis/orchestrator";
 import { getDynamicDetectionRules } from "@/lib/rules/db-rules";
 import { detectLogIncidents } from "@/lib/rules/engine";
 import { encodedRedirect } from "@/lib/utils";
@@ -37,7 +38,7 @@ export async function createLogUploadAction(formData: FormData) {
 
   const file = formData.get("logFile");
   const sourceType = getTrimmedValue(formData, "sourceType") || "custom";
-  const analysisMode = getTrimmedValue(formData, "analysisMode") || "hybrid";
+  const analysisMode = "hybrid";
 
   if (!(file instanceof File) || file.size === 0) {
     return encodedRedirect("error", "/dashboard", "Please choose a log file first.");
@@ -118,20 +119,23 @@ export async function createLogUploadAction(formData: FormData) {
   const incidents = detectLogIncidents(storedFileText, sourceType, dynamicRules);
 
   if (incidents.length > 0) {
-    const { error: incidentsError } = await supabase.from("log_errors").insert(
-      incidents.map((incident) => ({
-        log_id: logRecord.id,
-        user_id: user.id,
-        raw_text: incident.rawText,
-        error_type: incident.errorType,
-        detected_by: "rule",
-        line_number: incident.lineNumber,
-        is_uncertain: false,
-        review_status: "pending",
-      })),
-    );
+    const { data: insertedIncidents, error: incidentsError } = await supabase
+      .from("log_errors")
+      .insert(
+        incidents.map((incident) => ({
+          log_id: logRecord.id,
+          user_id: user.id,
+          raw_text: incident.rawText,
+          error_type: incident.errorType,
+          detected_by: "rule",
+          line_number: incident.lineNumber,
+          is_uncertain: false,
+          review_status: "pending",
+        })),
+      )
+      .select("id, raw_text, error_type, line_number");
 
-    if (incidentsError) {
+    if (incidentsError || !insertedIncidents) {
       await supabase
         .from("logs")
         .update({
@@ -140,7 +144,55 @@ export async function createLogUploadAction(formData: FormData) {
         })
         .eq("id", logRecord.id);
 
-      return encodedRedirect("error", "/dashboard", incidentsError.message);
+      return encodedRedirect(
+        "error",
+        "/dashboard",
+        incidentsError?.message ?? "Failed to write detected incidents.",
+      );
+    }
+
+    const analysesDraft = await analyzeIncidents(
+      incidents.map((incident) => ({
+        incident,
+        sourceType,
+        logContent: storedFileText,
+      })),
+    );
+
+    const analyses = insertedIncidents.map((incidentRow, index) => {
+      const draft = analysesDraft[index];
+
+      return {
+        log_error_id: incidentRow.id,
+        log_id: logRecord.id,
+        user_id: user.id,
+        cause: draft.cause,
+        risk_level: draft.riskLevel,
+        confidence: draft.confidence,
+        repair_suggestion: draft.repairSuggestion,
+        rag_context:
+          draft.ragContext.length > 0 ? JSON.stringify(draft.ragContext) : null,
+        model_name: draft.modelName,
+        analysis_mode: analysisMode,
+        latency_ms: draft.latencyMs,
+        tokens_used: draft.tokensUsed,
+      };
+    });
+
+    const { error: analysisError } = await supabase
+      .from("analysis_results")
+      .insert(analyses);
+
+    if (analysisError) {
+      await supabase
+        .from("logs")
+        .update({
+          status: "failed",
+          completed_at: new Date().toISOString(),
+        })
+        .eq("id", logRecord.id);
+
+      return encodedRedirect("error", "/dashboard", analysisError.message);
     }
   }
 

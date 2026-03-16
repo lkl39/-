@@ -1,12 +1,14 @@
-"use server";
+﻿"use server";
 
 import { randomUUID } from "node:crypto";
+import { revalidatePath } from "next/cache";
 import { analyzeIncidents } from "@/lib/analysis/orchestrator";
+import { resolveKnowledgeBaseContext } from "@/lib/analysis/rag";
 import { getDynamicDetectionRules } from "@/lib/rules/db-rules";
 import { detectLogIncidents } from "@/lib/rules/engine";
-import { encodedRedirect } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/server-client";
 import { getSupabaseEnv, hasSupabaseEnv } from "@/lib/supabase/env";
+import { encodedRedirect } from "@/lib/utils";
 
 function getTrimmedValue(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
@@ -146,7 +148,7 @@ export async function createLogUploadAction(formData: FormData) {
 
       return encodedRedirect(
         "error",
-        "/dashboard",
+        `/dashboard/logs/${logRecord.id}`,
         incidentsError?.message ?? "Failed to write detected incidents.",
       );
     }
@@ -157,6 +159,7 @@ export async function createLogUploadAction(formData: FormData) {
         sourceType,
         logContent: storedFileText,
       })),
+      { resolveRagContext: resolveKnowledgeBaseContext },
     );
 
     const analyses = insertedIncidents.map((incidentRow, index) => {
@@ -210,7 +213,100 @@ export async function createLogUploadAction(formData: FormData) {
 
   return encodedRedirect(
     "success",
-    "/dashboard",
+    `/dashboard/logs/${logRecord.id}`,
     `Uploaded ${file.name} successfully. Rule engine detected ${incidents.length} candidate issues.`,
   );
+}
+
+export async function updateLogMetadataAction(formData: FormData) {
+  if (!hasSupabaseEnv()) {
+    return encodedRedirect("error", "/dashboard/tasks", "Supabase is not configured.");
+  }
+
+  const logId = getTrimmedValue(formData, "logId");
+  const fileName = getTrimmedValue(formData, "fileName");
+  const sourceType = getTrimmedValue(formData, "sourceType") || "custom";
+
+  if (!logId || !fileName) {
+    return encodedRedirect("error", "/dashboard/tasks", "请填写完整的日志信息。");
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return encodedRedirect("error", "/", "请先登录后再管理日志。");
+  }
+
+  const { error } = await supabase
+    .from("logs")
+    .update({
+      file_name: fileName,
+      source_type: sourceType,
+    })
+    .eq("id", logId)
+    .eq("user_id", user.id);
+
+  if (error) {
+    return encodedRedirect("error", "/dashboard/tasks", error.message);
+  }
+
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/tasks");
+  revalidatePath(`/dashboard/logs/${logId}`);
+
+  return encodedRedirect("success", "/dashboard/tasks", "日志信息已更新。");
+}
+
+export async function deleteLogAction(formData: FormData) {
+  if (!hasSupabaseEnv()) {
+    return encodedRedirect("error", "/dashboard/tasks", "Supabase is not configured.");
+  }
+
+  const logId = getTrimmedValue(formData, "logId");
+  const storagePath = getTrimmedValue(formData, "storagePath");
+
+  if (!logId) {
+    return encodedRedirect("error", "/dashboard/tasks", "未找到要删除的日志。");
+  }
+
+  const { logBucket } = getSupabaseEnv();
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return encodedRedirect("error", "/", "请先登录后再管理日志。");
+  }
+
+  if (storagePath) {
+    const { error: storageError } = await supabase.storage
+      .from(logBucket)
+      .remove([storagePath]);
+
+    if (storageError) {
+      return encodedRedirect("error", "/dashboard/tasks", storageError.message);
+    }
+  }
+
+  const { error } = await supabase
+    .from("logs")
+    .delete()
+    .eq("id", logId)
+    .eq("user_id", user.id);
+
+  if (error) {
+    return encodedRedirect("error", "/dashboard/tasks", error.message);
+  }
+
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/tasks");
+  revalidatePath("/dashboard/incidents");
+  revalidatePath("/dashboard/high-risk");
+  revalidatePath("/dashboard/analyses");
+
+  return encodedRedirect("success", "/dashboard/tasks", "日志已删除。");
 }

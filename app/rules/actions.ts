@@ -1,4 +1,4 @@
-"use server";
+﻿"use server";
 
 import { encodedRedirect } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/server-client";
@@ -16,8 +16,10 @@ function parseSourceTypes(value: string) {
 }
 
 export async function createDetectionRuleAction(formData: FormData) {
+  const returnPath = getTrimmedValue(formData, "returnPath") || "/dashboard/reviews";
+
   if (!hasSupabaseEnv()) {
-    return encodedRedirect("error", "/dashboard", "Supabase is not configured.");
+    return encodedRedirect("error", returnPath, "Supabase 未配置。",);
   }
 
   const name = getTrimmedValue(formData, "name");
@@ -30,11 +32,7 @@ export async function createDetectionRuleAction(formData: FormData) {
   const sourceTypes = parseSourceTypes(getTrimmedValue(formData, "sourceTypes"));
 
   if (!name || !pattern || !errorType) {
-    return encodedRedirect(
-      "error",
-      "/dashboard",
-      "Rule name, pattern, and error type are required.",
-    );
+    return encodedRedirect("error", returnPath, "规则名称、匹配模式和异常类型不能为空。");
   }
 
   const matchType = matchTypeValue === "regex" ? "regex" : "keyword";
@@ -49,7 +47,7 @@ export async function createDetectionRuleAction(formData: FormData) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return encodedRedirect("error", "/", "Please sign in before creating rules.");
+    return encodedRedirect("error", "/", "请先登录后再沉淀规则。");
   }
 
   const { error } = await supabase.from("detection_rules").insert({
@@ -66,8 +64,8 @@ export async function createDetectionRuleAction(formData: FormData) {
   });
 
   if (error) {
-    return encodedRedirect("error", "/dashboard", error.message);
+    return encodedRedirect("error", returnPath, error.message);
   }
 
-  return encodedRedirect("success", "/dashboard", `Rule "${name}" was created successfully.`);
+  return encodedRedirect("success", returnPath, `规则“${name}”已保存。`);
 }

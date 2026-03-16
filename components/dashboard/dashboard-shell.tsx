@@ -1,18 +1,19 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { signOutAction } from "@/app/auth/actions";
 import { StatusPill } from "@/components/dashboard/status-pill";
 
 type DashboardShellProps = {
   userEmail: string;
   teamName: string | null;
-  activeView: "overview" | "rules" | "reviews";
+  activeView: "overview" | "logs" | "rules" | "reviews" | "account";
   children: React.ReactNode;
 };
 
 const navItems = [
-  { key: "overview", href: "/dashboard", label: "总览" },
-  { key: "rules", href: "/dashboard/rules", label: "规则中心" },
-  { key: "reviews", href: "/dashboard/reviews", label: "人工复核" },
+  { key: "overview", href: "/dashboard", label: "首页" },
+  { key: "logs", href: "/dashboard/tasks", label: "数据管理中心" },
+  { key: "reviews", href: "/dashboard/reviews", label: "审核与规则管理" },
+  { key: "account", href: "/dashboard/account", label: "个人中心" },
 ] as const;
 
 export function DashboardShell({
@@ -32,10 +33,10 @@ export function DashboardShell({
               </div>
               <div>
                 <p className="text-xs uppercase tracking-[0.2em] text-cyan-200/80">
-                  Operations Workspace
+                  运维工作台
                 </p>
                 <h1 className="mt-1 text-xl font-semibold text-white">
-                  智能日志分析与运维辅助决策台
+                  智能日志分析控制台
                 </h1>
                 <p className="mt-1 text-sm text-slate-400">
                   当前账号：{userEmail}
@@ -45,7 +46,7 @@ export function DashboardShell({
             </div>
 
             <div className="flex flex-wrap gap-3">
-              <StatusPill label="Supabase Online" tone="success" />
+              <StatusPill label="Supabase 在线" tone="success" />
               <Link
                 href="/"
                 className="rounded-full border border-white/12 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-cyan-300/60 hover:bg-white/6"

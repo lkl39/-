@@ -1,3 +1,6 @@
+﻿"use client";
+
+import { useEffect, useState } from "react";
 import { StatusPill } from "@/components/dashboard/status-pill";
 
 type AuthNoticeProps = {
@@ -11,24 +14,45 @@ export function AuthNotice({
   status,
   message,
 }: AuthNoticeProps) {
+  const [visible, setVisible] = useState(Boolean(message));
+
+  useEffect(() => {
+    setVisible(Boolean(message));
+  }, [message]);
+
+  useEffect(() => {
+    if (!message) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setVisible(false);
+
+      const url = new URL(window.location.href);
+      url.searchParams.delete("status");
+      url.searchParams.delete("message");
+      window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+    }, 3600);
+
+    return () => window.clearTimeout(timer);
+  }, [message]);
+
+  if (!message || !visible) {
+    return null;
+  }
+
   const tone =
     status === "error" ? "danger" : status === "success" ? "success" : "info";
 
-  const fallbackMessage = configured
-    ? "Supabase 已接入依赖，填好环境变量后即可启用真实认证。"
-    : "当前还没有填写 Supabase 项目环境变量，表单会给出配置提示。";
-
   return (
-    <div className="rounded-[28px] border border-white/10 bg-white/6 p-4 shadow-[0_18px_55px_rgba(2,8,18,0.28)]">
+    <div className="fixed right-5 top-5 z-50 w-[min(420px,calc(100vw-2.5rem))] animate-[toast-in_220ms_ease-out] rounded-[24px] border border-white/12 bg-slate-950/88 p-4 shadow-[0_22px_70px_rgba(2,8,18,0.55)] backdrop-blur-xl md:right-8 md:top-8">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold text-white">Auth Status</p>
-          <p className="mt-2 text-sm leading-6 text-slate-300">
-            {message ?? fallbackMessage}
-          </p>
+          <p className="text-sm font-semibold text-white">认证提示</p>
+          <p className="mt-2 text-sm leading-6 text-slate-300">{message}</p>
         </div>
         <StatusPill
-          label={configured ? "Configured Ready" : "Env Required"}
+          label={configured ? "已配置" : "待配置"}
           tone={configured ? "success" : tone}
         />
       </div>

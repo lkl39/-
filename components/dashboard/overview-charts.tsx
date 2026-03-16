@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   Bar,
@@ -35,6 +35,13 @@ type OverviewChartsProps = {
   }[];
 };
 
+const riskLabelMap: Record<string, string> = {
+  High: "高风险",
+  Medium: "中风险",
+  Low: "低风险",
+  Uncertain: "待确认",
+};
+
 export function OverviewCharts({
   typeBreakdown,
   riskBreakdown,
@@ -43,9 +50,9 @@ export function OverviewCharts({
   return (
     <section className="grid gap-4 xl:grid-cols-[1.1fr_0.95fr_1fr]">
       <SectionCard
-        eyebrow="Overview"
+        eyebrow="Types"
         title="异常类型柱状图"
-        description="按命中的异常类型统计最近一批数据，用来快速判断当前主故障面。"
+        description="聚合最近一批异常命中结果，快速判断当前最值得优先关注的问题类型。"
       >
         {typeBreakdown.length === 0 ? (
           <EmptyChart text="暂无异常类型数据" />
@@ -90,7 +97,7 @@ export function OverviewCharts({
       <SectionCard
         eyebrow="Risk"
         title="风险等级饼图"
-        description="按 analysis_results 中的风险等级汇总，突出高风险和待人工确认的问题。"
+        description="按照分析结果里的风险等级做汇总，突出高风险与待人工确认的问题占比。"
       >
         {riskBreakdown.length === 0 ? (
           <EmptyChart text="暂无风险分布数据" />
@@ -112,6 +119,10 @@ export function OverviewCharts({
                     ))}
                   </Pie>
                   <Tooltip
+                    formatter={(value, name) => [
+                      typeof value === "number" ? value : Number(value ?? 0),
+                      riskLabelMap[String(name)] ?? String(name),
+                    ]}
                     contentStyle={{
                       backgroundColor: "#081120",
                       border: "1px solid rgba(148,163,184,0.16)",
@@ -134,7 +145,7 @@ export function OverviewCharts({
                         className="h-3 w-3 rounded-full"
                         style={{ backgroundColor: item.color }}
                       />
-                      <span className="text-slate-300">{item.label}</span>
+                      <span className="text-slate-300">{riskLabelMap[item.label] ?? item.label}</span>
                     </div>
                     <span className="font-semibold text-white">{item.value}</span>
                   </div>
@@ -147,8 +158,8 @@ export function OverviewCharts({
 
       <SectionCard
         eyebrow="Modes"
-        title="分析模式对比图"
-        description="这里保留 Rule Only、Model Only、Hybrid 的对比展示，用来直观看出混合模式更完整、更稳定。"
+        title="模式对比图"
+        description="这里保留 Rule、Model、Hybrid 的对比展示，用来体现混合分析的完整性和稳定性。"
       >
         {modeComparison.every(
           (item) => item.tasks === 0 && item.findings === 0 && item.avgConfidence === 0,
@@ -199,7 +210,7 @@ export function OverviewCharts({
                 <Bar
                   yAxisId="left"
                   dataKey="findings"
-                  name="分析条数"
+                  name="结果条数"
                   fill="#f59e0b"
                   radius={[8, 8, 0, 0]}
                 />
@@ -228,3 +239,5 @@ function EmptyChart({ text }: { text: string }) {
     </div>
   );
 }
+
+

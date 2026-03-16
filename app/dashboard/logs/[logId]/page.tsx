@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+﻿import { notFound } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { LogDetail } from "@/components/dashboard/log-detail";
 import { getSupabaseEnv } from "@/lib/supabase/env";
@@ -56,7 +56,7 @@ export default async function LogDetailPage({ params }: LogDetailPageProps) {
     <DashboardShell
       userEmail={profile.userEmail ?? "unknown-user"}
       teamName={profile.teamName}
-      activeView="overview"
+      activeView="logs"
     >
       <LogDetail
         log={{
@@ -126,3 +126,4 @@ async function loadPreview(storagePath: string | null, fileSize: number) {
     return null;
   }
 }
+

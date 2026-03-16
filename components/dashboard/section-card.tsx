@@ -1,7 +1,7 @@
-type SectionCardProps = {
+﻿type SectionCardProps = {
   eyebrow: string;
   title: string;
-  description: string;
+  description?: string;
   children: React.ReactNode;
   className?: string;
 };
@@ -24,9 +24,11 @@ export function SectionCard({
         <h2 className="mt-3 text-2xl font-semibold tracking-tight text-white">
           {title}
         </h2>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-          {description}
-        </p>
+        {description ? (
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+            {description}
+          </p>
+        ) : null}
       </div>
       {children}
     </section>

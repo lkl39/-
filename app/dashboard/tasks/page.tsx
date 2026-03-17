@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { deleteLogAction, updateLogMetadataAction } from "@/app/logs/actions";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { SectionCard } from "@/components/dashboard/section-card";
@@ -46,7 +46,10 @@ export default async function DashboardTasksPage({ searchParams }: DashboardTask
               <p className="text-sm font-semibold text-white">数据管理提示</p>
               <p className="mt-2 text-sm leading-6 text-slate-300">{params.message}</p>
             </div>
-            <StatusPill label={params.status === "success" ? "成功" : params.status === "error" ? "失败" : "提示"} tone={tone} />
+            <StatusPill
+              label={params.status === "success" ? "成功" : params.status === "error" ? "失败" : "提示"}
+              tone={tone}
+            />
           </div>
         </section>
       ) : null}
@@ -54,11 +57,11 @@ export default async function DashboardTasksPage({ searchParams }: DashboardTask
       <SectionCard
         eyebrow="Data Center"
         title="数据管理中心"
-        description="这里统一管理你上传过的日志，并进入每一条日志的详细分析内容。支持查看、修改基础信息、删除日志，以及查看系统保留时间。"
+        description="统一管理你上传过的日志，支持查看详情、修改基础信息、删除日志，以及查看保留期限。"
       >
         <div className="mb-5 grid gap-4 md:grid-cols-3">
           <SummaryCard label="日志总数" value={`${logs.length}`} />
-          <SummaryCard label="系统保留期" value={`${RETENTION_DAYS} 天`} />
+          <SummaryCard label="保留期限" value={`${RETENTION_DAYS} 天`} />
           <SummaryCard label="管理能力" value="增删改查" />
         </div>
 
@@ -91,13 +94,13 @@ export default async function DashboardTasksPage({ searchParams }: DashboardTask
                         href={`/dashboard/logs/${log.id}`}
                         className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-slate-200"
                       >
-                        查看当前日志详细内容
+                        查看日志详情
                       </Link>
                       <Link
                         href={`/dashboard/reviews?logId=${encodeURIComponent(log.id)}`}
                         className="rounded-full border border-white/12 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-amber-300/60 hover:bg-white/6"
                       >
-                        进入人工复查
+                        进入人工复核
                       </Link>
                     </div>
                   </div>
@@ -117,7 +120,7 @@ export default async function DashboardTasksPage({ searchParams }: DashboardTask
                           />
                         </label>
                         <label className="space-y-2">
-                          <span className="block text-xs uppercase tracking-[0.18em] text-slate-500">日志来源</span>
+                          <span className="block text-xs uppercase tracking-[0.18em] text-slate-500">Source Type</span>
                           <select
                             name="sourceType"
                             defaultValue={log.source_type ?? "custom"}
@@ -125,7 +128,7 @@ export default async function DashboardTasksPage({ searchParams }: DashboardTask
                           >
                             <option value="nginx">Nginx</option>
                             <option value="system">System</option>
-                            <option value="postgres">Postgres</option>
+                            <option value="postgres">PostgreSQL</option>
                             <option value="application">Application</option>
                             <option value="custom">Custom</option>
                           </select>
@@ -143,7 +146,9 @@ export default async function DashboardTasksPage({ searchParams }: DashboardTask
                       <p className="text-sm font-semibold text-white">日志管理</p>
                       <div className="mt-4 space-y-3 text-sm text-slate-300">
                         <p>上传时间：{formatTimestamp(log.uploaded_at ?? "")}</p>
-                        <p>Storage 路径：<span className="break-all font-mono text-xs text-cyan-200">{log.storage_path ?? "无"}</span></p>
+                        <p>
+                          Storage Path：<span className="break-all font-mono text-xs text-cyan-200">{log.storage_path ?? "无"}</span>
+                        </p>
                       </div>
                       <form action={deleteLogAction} className="mt-4">
                         <input type="hidden" name="logId" value={log.id} />
@@ -197,7 +202,7 @@ function formatBytes(value: number) {
 }
 
 function formatTimestamp(value: string) {
-  if (!value) return "未知时间";
+  if (!value) return "暂无时间";
   return new Intl.DateTimeFormat("zh-CN", {
     dateStyle: "medium",
     timeStyle: "short",
@@ -207,7 +212,7 @@ function formatTimestamp(value: string) {
 function formatSource(value: string) {
   if (value === "nginx") return "Nginx";
   if (value === "system") return "System";
-  if (value === "postgres") return "Postgres";
+  if (value === "postgres") return "PostgreSQL";
   if (value === "application") return "Application";
   return "Custom";
 }

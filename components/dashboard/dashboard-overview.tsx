@@ -76,7 +76,7 @@ export function DashboardOverview({
 
             <div className="grid gap-3 md:grid-cols-[1fr_0.9fr]">
               <label className="space-y-2">
-                <span className="block text-sm font-medium text-slate-200">日志来源</span>
+                <span className="block text-sm font-medium text-slate-200">Source Type</span>
                 <select
                   name="sourceType"
                   defaultValue="nginx"
@@ -84,7 +84,7 @@ export function DashboardOverview({
                 >
                   <option value="nginx">Nginx</option>
                   <option value="system">System</option>
-                  <option value="postgres">Postgres</option>
+                  <option value="PostgreSQL">PostgreSQL</option>
                   <option value="application">Application</option>
                   <option value="custom">Custom</option>
                 </select>

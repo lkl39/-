@@ -3,12 +3,32 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { analyzeIncidents } from "@/lib/analysis/orchestrator";
+import type { IncidentAnalysisInput, NormalizedAnalysisResult } from "@/lib/analysis/types";
 import { resolveKnowledgeBaseContext } from "@/lib/analysis/rag";
 import { getDynamicDetectionRules } from "@/lib/rules/db-rules";
 import { detectLogIncidents } from "@/lib/rules/engine";
+import type { DetectedIncident } from "@/lib/rules/types";
 import { createClient } from "@/lib/supabase/server-client";
 import { getSupabaseEnv, hasSupabaseEnv } from "@/lib/supabase/env";
 import { encodedRedirect } from "@/lib/utils";
+
+const SHORT_FILE_BYTES = 1024;
+const LONG_FILE_BYTES = 50 * 1024;
+const SHORT_LINE_COUNT = 20;
+const SHORT_INCIDENT_COUNT = 3;
+const LONG_INCIDENT_COUNT = 20;
+const HYBRID_MAX_GROUPS = 15;
+const SUMMARIZED_MAX_GROUPS = 12;
+const GROUP_NEARBY_LINE_WINDOW = 12;
+const GROUP_SIMILARITY_THRESHOLD = 0.78;
+
+type AnalysisMode = "rules_fast" | "hybrid" | "summarized_hybrid";
+
+type IncidentGroup = {
+  representativeIndex: number;
+  memberIndices: number[];
+  signature: string;
+};
 
 function getTrimmedValue(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
@@ -33,6 +53,163 @@ function createStoragePath(userId: string, fileName: string) {
   return `${userId}/${year}/${month}/${randomUUID()}-${sanitizeFileName(fileName)}`;
 }
 
+function resolveAnalysisMode(fileSize: number, lineCount: number, incidentCount: number): AnalysisMode {
+  const isShort = fileSize < SHORT_FILE_BYTES || lineCount <= SHORT_LINE_COUNT || incidentCount <= SHORT_INCIDENT_COUNT;
+  if (isShort) {
+    return "rules_fast";
+  }
+
+  const isLong = fileSize > LONG_FILE_BYTES || incidentCount > LONG_INCIDENT_COUNT;
+  if (isLong) {
+    return "summarized_hybrid";
+  }
+
+  return "hybrid";
+}
+
+function normalizeIncidentText(rawText: string) {
+  return rawText
+    .toLowerCase()
+    .replace(/\b\d{4}-\d{2}-\d{2}[ t]\d{2}:\d{2}:\d{2}(?:[,.:]\d+)?\b/g, " ")
+    .replace(/\b\d+(?:ms|s|m|h)?\b/g, " # ")
+    .replace(/\b[0-9a-f]{8,}\b/g, " # ")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function tokenizeIncident(rawText: string) {
+  return normalizeIncidentText(rawText)
+    .split(" ")
+    .filter((token) => token.length >= 3);
+}
+
+function calculateTokenSimilarity(a: string[], b: string[]) {
+  if (a.length === 0 || b.length === 0) {
+    return 0;
+  }
+
+  const aSet = new Set(a);
+  const bSet = new Set(b);
+  let overlap = 0;
+
+  for (const token of aSet) {
+    if (bSet.has(token)) {
+      overlap += 1;
+    }
+  }
+
+  return overlap / Math.max(aSet.size, bSet.size);
+}
+
+function shouldGroupIncidents(current: DetectedIncident, representative: DetectedIncident) {
+  if (current.errorType !== representative.errorType) {
+    return false;
+  }
+
+  const currentSignature = normalizeIncidentText(current.rawText);
+  const representativeSignature = normalizeIncidentText(representative.rawText);
+
+  if (!currentSignature || !representativeSignature) {
+    return false;
+  }
+
+  if (currentSignature === representativeSignature) {
+    return true;
+  }
+
+  const lineDistance = Math.abs(current.lineNumber - representative.lineNumber);
+  const similarity = calculateTokenSimilarity(
+    tokenizeIncident(current.rawText),
+    tokenizeIncident(representative.rawText),
+  );
+
+  return lineDistance <= GROUP_NEARBY_LINE_WINDOW && similarity >= GROUP_SIMILARITY_THRESHOLD;
+}
+
+function createIncidentGroups(incidents: DetectedIncident[]) {
+  const groups: IncidentGroup[] = [];
+
+  incidents.forEach((incident, index) => {
+    const existingGroup = groups.find((group) =>
+      shouldGroupIncidents(incident, incidents[group.representativeIndex]),
+    );
+
+    if (existingGroup) {
+      existingGroup.memberIndices.push(index);
+      return;
+    }
+
+    groups.push({
+      representativeIndex: index,
+      memberIndices: [index],
+      signature: normalizeIncidentText(incident.rawText),
+    });
+  });
+
+  return groups;
+}
+
+function getRiskWeight(riskLevel: DetectedIncident["riskLevel"]) {
+  if (riskLevel === "high") return 3;
+  if (riskLevel === "medium") return 2;
+  return 1;
+}
+
+function selectLlmGroupIndexes(groups: IncidentGroup[], incidents: DetectedIncident[], analysisMode: AnalysisMode) {
+  if (analysisMode === "rules_fast") {
+    return new Set<number>();
+  }
+
+  const maxGroups = analysisMode === "summarized_hybrid" ? SUMMARIZED_MAX_GROUPS : HYBRID_MAX_GROUPS;
+
+  return new Set(
+    groups
+      .map((group, index) => ({
+        index,
+        score:
+          group.memberIndices.length * 10 +
+          getRiskWeight(incidents[group.representativeIndex].riskLevel) * 5 -
+          incidents[group.representativeIndex].lineNumber / 10000,
+      }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, maxGroups)
+      .map((item) => item.index),
+  );
+}
+
+async function analyzeRepresentativeGroups(
+  inputs: IncidentAnalysisInput[],
+  llmIndexes: number[],
+  ruleOnlyIndexes: number[],
+) {
+  const resultsByIndex = new Map<number, NormalizedAnalysisResult>();
+
+  if (llmIndexes.length > 0) {
+    const llmResults = await analyzeIncidents(
+      llmIndexes.map((index) => inputs[index]),
+      { resolveRagContext: resolveKnowledgeBaseContext },
+    );
+
+    llmIndexes.forEach((index, resultIndex) => {
+      resultsByIndex.set(index, llmResults[resultIndex]);
+    });
+  }
+
+  if (ruleOnlyIndexes.length > 0) {
+    const ruleOnlyResults = await analyzeIncidents(
+      ruleOnlyIndexes.map((index) => inputs[index]),
+      { providerId: null, resolveRagContext: resolveKnowledgeBaseContext },
+    );
+
+    ruleOnlyIndexes.forEach((index, resultIndex) => {
+      resultsByIndex.set(index, ruleOnlyResults[resultIndex]);
+    });
+  }
+
+  return resultsByIndex;
+}
+
 export async function createLogUploadAction(formData: FormData) {
   if (!hasSupabaseEnv()) {
     return encodedRedirect("error", "/dashboard", "Supabase is not configured.");
@@ -40,7 +217,6 @@ export async function createLogUploadAction(formData: FormData) {
 
   const file = formData.get("logFile");
   const sourceType = getTrimmedValue(formData, "sourceType") || "custom";
-  const analysisMode = "hybrid";
 
   if (!(file instanceof File) || file.size === 0) {
     return encodedRedirect("error", "/dashboard", "Please choose a log file first.");
@@ -96,6 +272,9 @@ export async function createLogUploadAction(formData: FormData) {
   }
 
   const storedFileText = await storedFile.text();
+  const dynamicRules = await getDynamicDetectionRules();
+  const incidents = detectLogIncidents(storedFileText, sourceType, dynamicRules);
+  const analysisMode = resolveAnalysisMode(file.size, lineCount, incidents.length);
 
   const { data: logRecord, error } = await supabase
     .from("logs")
@@ -116,9 +295,6 @@ export async function createLogUploadAction(formData: FormData) {
   if (error || !logRecord) {
     return encodedRedirect("error", "/dashboard", error?.message ?? "Failed to create log record.");
   }
-
-  const dynamicRules = await getDynamicDetectionRules();
-  const incidents = detectLogIncidents(storedFileText, sourceType, dynamicRules);
 
   if (incidents.length > 0) {
     const { data: insertedIncidents, error: incidentsError } = await supabase
@@ -153,33 +329,51 @@ export async function createLogUploadAction(formData: FormData) {
       );
     }
 
-    const analysesDraft = await analyzeIncidents(
-      incidents.map((incident) => ({
-        incident,
-        sourceType,
-        logContent: storedFileText,
-      })),
-      { resolveRagContext: resolveKnowledgeBaseContext },
+    const groups = createIncidentGroups(incidents);
+    const llmGroupIndexes = selectLlmGroupIndexes(groups, incidents, analysisMode);
+    const representativeInputs = groups.map((group) => ({
+      incident: incidents[group.representativeIndex],
+      sourceType,
+      logContent: storedFileText,
+    }));
+
+    const llmIndexes: number[] = [];
+    const ruleOnlyIndexes: number[] = [];
+
+    groups.forEach((_, index) => {
+      if (llmGroupIndexes.has(index)) {
+        llmIndexes.push(index);
+      } else {
+        ruleOnlyIndexes.push(index);
+      }
+    });
+
+    const representativeResults = await analyzeRepresentativeGroups(
+      representativeInputs,
+      llmIndexes,
+      ruleOnlyIndexes,
     );
 
-    const analyses = insertedIncidents.map((incidentRow, index) => {
-      const draft = analysesDraft[index];
+    const analyses = groups.flatMap((group, groupIndex) => {
+      const result = representativeResults.get(groupIndex);
+      if (!result) {
+        return [];
+      }
 
-      return {
-        log_error_id: incidentRow.id,
+      return group.memberIndices.map((memberIndex) => ({
+        log_error_id: insertedIncidents[memberIndex].id,
         log_id: logRecord.id,
         user_id: user.id,
-        cause: draft.cause,
-        risk_level: draft.riskLevel,
-        confidence: draft.confidence,
-        repair_suggestion: draft.repairSuggestion,
-        rag_context:
-          draft.ragContext.length > 0 ? JSON.stringify(draft.ragContext) : null,
-        model_name: draft.modelName,
+        cause: result.cause,
+        risk_level: result.riskLevel,
+        confidence: result.confidence,
+        repair_suggestion: result.repairSuggestion,
+        rag_context: result.ragContext.length > 0 ? JSON.stringify(result.ragContext) : null,
+        model_name: result.modelName,
         analysis_mode: analysisMode,
-        latency_ms: draft.latencyMs,
-        tokens_used: draft.tokensUsed,
-      };
+        latency_ms: result.latencyMs,
+        tokens_used: result.tokensUsed,
+      }));
     });
 
     const { error: analysisError } = await supabase
@@ -214,7 +408,7 @@ export async function createLogUploadAction(formData: FormData) {
   return encodedRedirect(
     "success",
     `/dashboard/logs/${logRecord.id}`,
-    `Uploaded ${file.name} successfully. Rule engine detected ${incidents.length} candidate issues.`,
+    `Uploaded ${file.name} successfully. Mode: ${analysisMode}. Rule engine detected ${incidents.length} candidate issues.`,
   );
 }
 

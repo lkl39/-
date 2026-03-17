@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { SectionCard } from "@/components/dashboard/section-card";
 import { StatusPill } from "@/components/dashboard/status-pill";
 
@@ -64,7 +64,7 @@ export function LogDetail({ log, errors, analyses, preview }: LogDetailProps) {
             <InfoBlock label="分析方式" value={log.analysisMode}>
               <StatusPill label={log.analysisMode} tone="info" />
             </InfoBlock>
-            <InfoBlock label="日志来源" value={formatSource(log.sourceType)} />
+            <InfoBlock label="Source Type" value={formatSource(log.sourceType)} />
             <InfoBlock label="文件类型" value={log.fileType || "未知"} />
             <InfoBlock label="文件大小" value={formatBytes(log.fileSize)} />
             <InfoBlock label="总行数" value={`${log.lineCount} 行`} />
@@ -310,7 +310,7 @@ function getStatusLabel(status: string) {
 function formatSource(value: string) {
   if (value === "nginx") return "Nginx";
   if (value === "system") return "System";
-  if (value === "postgres") return "Postgres";
+  if (value === "PostgreSQL") return "PostgreSQL";
   if (value === "application") return "Application";
   return "Custom";
 }

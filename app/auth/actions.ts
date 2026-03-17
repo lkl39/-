@@ -1,4 +1,4 @@
-"use server";
+﻿"use server";
 
 import { encodedRedirect } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/server-client";
@@ -10,11 +10,7 @@ function getTrimmedValue(formData: FormData, key: string) {
 
 export async function signInAction(formData: FormData) {
   if (!hasSupabaseEnv()) {
-    return encodedRedirect(
-      "error",
-      "/",
-      "请先配置 NEXT_PUBLIC_SUPABASE_URL 和 Supabase 公钥。",
-    );
+    return encodedRedirect("error", "/", "请先配置 NEXT_PUBLIC_SUPABASE_URL 和 Supabase 公钥。");
   }
 
   const email = getTrimmedValue(formData, "email");
@@ -39,11 +35,7 @@ export async function signInAction(formData: FormData) {
 
 export async function signUpAction(formData: FormData) {
   if (!hasSupabaseEnv()) {
-    return encodedRedirect(
-      "error",
-      "/",
-      "请先配置 NEXT_PUBLIC_SUPABASE_URL 和 Supabase 公钥。",
-    );
+    return encodedRedirect("error", "/", "请先配置 NEXT_PUBLIC_SUPABASE_URL 和 Supabase 公钥。");
   }
 
   const email = getTrimmedValue(formData, "registerEmail");
@@ -71,11 +63,7 @@ export async function signUpAction(formData: FormData) {
     return encodedRedirect("error", "/", error.message);
   }
 
-  return encodedRedirect(
-    "success",
-    "/",
-    "注册请求已提交，请检查邮箱并完成验证。",
-  );
+  return encodedRedirect("success", "/", "注册请求已提交，请检查邮箱并完成验证。");
 }
 
 export async function signOutAction() {

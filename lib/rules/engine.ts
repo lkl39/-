@@ -1,4 +1,4 @@
-import { defaultDetectionRules } from "@/lib/rules/default-rules";
+﻿import { defaultDetectionRules } from "@/lib/rules/default-rules";
 import type { DetectedIncident, DetectionRule } from "@/lib/rules/types";
 
 function normalizeSourceType(sourceType: string) {
@@ -25,6 +25,14 @@ function matchesRule(line: string, rule: DetectionRule) {
   return new RegExp(rule.pattern, rule.flags).test(line);
 }
 
+function isStackTraceNoiseLine(line: string) {
+  return (
+    /^at\s+[\w.$/<>-]+\(/.test(line) ||
+    /^\.\.\.\s+\d+\s+(?:more|common frames omitted)/i.test(line) ||
+    /^Suppressed:\s+/i.test(line)
+  );
+}
+
 export function detectLogIncidents(
   content: string,
   sourceType: string,
@@ -41,7 +49,7 @@ export function detectLogIncidents(
   lines.forEach((line, index) => {
     const normalizedLine = line.trim();
 
-    if (!normalizedLine) {
+    if (!normalizedLine || isStackTraceNoiseLine(normalizedLine)) {
       return;
     }
 

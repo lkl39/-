@@ -1,4 +1,4 @@
-import { buildRuleAnalysisDraft } from "@/lib/analysis/rule-analysis";
+﻿import { buildRuleAnalysisDraft } from "@/lib/analysis/rule-analysis";
 import type {
   IncidentAnalysisInput,
   NormalizedAnalysisResult,
@@ -7,9 +7,12 @@ import type {
 import { getLlmProvider } from "@/lib/llm";
 import type { LlmProviderId } from "@/lib/llm/types";
 
+const DEFAULT_ANALYSIS_CONCURRENCY = 3;
+
 type AnalyzeIncidentsOptions = {
   providerId?: LlmProviderId | null;
   resolveRagContext?: (input: IncidentAnalysisInput) => Promise<RagContextItem[]>;
+  concurrency?: number;
 };
 
 export async function analyzeIncidents(
@@ -17,14 +20,13 @@ export async function analyzeIncidents(
   options: AnalyzeIncidentsOptions = {},
 ) {
   const provider = getLlmProvider(options.providerId);
-  const results: NormalizedAnalysisResult[] = [];
+  const concurrency = Math.max(1, options.concurrency ?? DEFAULT_ANALYSIS_CONCURRENCY);
 
-  for (const input of inputs) {
+  return mapWithConcurrency(inputs, concurrency, async (input) => {
     const ragContext = input.ragContext ?? (await options.resolveRagContext?.(input)) ?? [];
 
     if (!provider) {
-      results.push(buildRuleOnlyResult(input, ragContext));
-      continue;
+      return buildRuleOnlyResult(input, ragContext);
     }
 
     try {
@@ -36,7 +38,7 @@ export async function analyzeIncidents(
         ragContext,
       });
 
-      results.push({
+      return {
         cause: response.cause,
         riskLevel: response.riskLevel,
         confidence: response.confidence,
@@ -47,11 +49,36 @@ export async function analyzeIncidents(
         tokensUsed: response.tokensUsed ?? 0,
         providerId: provider.id,
         source: "llm",
-      });
+      } satisfies NormalizedAnalysisResult;
     } catch {
-      results.push(buildRuleOnlyResult(input, ragContext));
+      return buildRuleOnlyResult(input, ragContext);
+    }
+  });
+}
+
+async function mapWithConcurrency<TInput, TOutput>(
+  items: TInput[],
+  concurrency: number,
+  mapper: (item: TInput, index: number) => Promise<TOutput>,
+) {
+  if (items.length === 0) {
+    return [] as TOutput[];
+  }
+
+  const results = new Array<TOutput>(items.length);
+  let cursor = 0;
+
+  async function worker() {
+    while (cursor < items.length) {
+      const currentIndex = cursor;
+      cursor += 1;
+      results[currentIndex] = await mapper(items[currentIndex], currentIndex);
     }
   }
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, items.length) }, () => worker()),
+  );
 
   return results;
 }

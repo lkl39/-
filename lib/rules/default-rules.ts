@@ -1,12 +1,13 @@
-import type { DetectionRule } from "@/lib/rules/types";
+﻿import type { DetectionRule } from "@/lib/rules/types";
 
 export const defaultDetectionRules: DetectionRule[] = [
   {
     id: "timeout",
     name: "Timeout",
     description: "Detect timeout related errors.",
-    matchType: "keyword",
-    pattern: "timeout",
+    matchType: "regex",
+    pattern: "timeout|timed out|read timed out|sockettimeoutexception",
+    flags: "i",
     errorType: "timeout",
     riskLevel: "high",
   },
@@ -14,17 +15,20 @@ export const defaultDetectionRules: DetectionRule[] = [
     id: "connection-refused",
     name: "Connection Refused",
     description: "Detect service or port refusal errors.",
-    matchType: "keyword",
-    pattern: "connection refused",
+    matchType: "regex",
+    pattern: "connection refused|connectexception|refused to connect",
+    flags: "i",
     errorType: "connection_refused",
     riskLevel: "high",
   },
   {
     id: "http-5xx",
     name: "HTTP 5xx",
-    description: "Detect 5xx HTTP status lines.",
+    description: "Detect explicit 5xx HTTP status lines without matching unrelated numbers such as stack frame line numbers or timeouts.",
     matchType: "regex",
-    pattern: "\\b5\\d\\d\\b",
+    pattern:
+      "(?:\\bhttp(?:\\/\\d(?:\\.\\d)?)?\\b[^\\r\\n]{0,24}\\b5\\d\\d\\b|\\bstatus(?:\\s*code)?\\s*[=:]\\s*5\\d\\d\\b|\\bresponse(?:\\s*code)?\\s*[=:]\\s*5\\d\\d\\b|\\bcode\\s*[=:]\\s*5\\d\\d\\b|\\b(?:bad gateway|service unavailable|gateway timeout)\\b)",
+    flags: "i",
     errorType: "http_5xx",
     riskLevel: "high",
     sourceTypes: ["nginx", "application", "custom"],
@@ -52,9 +56,9 @@ export const defaultDetectionRules: DetectionRule[] = [
   {
     id: "generic-exception",
     name: "Exception",
-    description: "Detect generic exception lines.",
+    description: "Detect exception headers, cause lines, or traceback markers.",
     matchType: "regex",
-    pattern: "exception|traceback",
+    pattern: "exception|traceback|^caused by:",
     flags: "i",
     errorType: "exception",
     riskLevel: "medium",
@@ -65,7 +69,7 @@ export const defaultDetectionRules: DetectionRule[] = [
     name: "Generic Error",
     description: "Detect generic error and failed signatures.",
     matchType: "regex",
-    pattern: "\\berror\\b|\\bfailed\\b",
+    pattern: "\\berror\\b|\\bfailed\\b|\\bfailure\\b",
     flags: "i",
     errorType: "generic_error",
     riskLevel: "medium",

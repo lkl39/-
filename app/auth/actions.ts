@@ -75,6 +75,18 @@ export async function signUpAction(formData: FormData) {
     return encodedRedirect("error", "/", error.message);
   }
 
+  if (
+    data.user &&
+    Array.isArray(data.user.identities) &&
+    data.user.identities.length === 0
+  ) {
+    return encodedRedirect(
+      "error",
+      "/",
+      "注册未成功：该邮箱可能已注册，或当前 Supabase Auth 设置阻止了新用户创建。请换一个邮箱，或检查 Authentication -> Providers -> Email 是否开启 Signups。",
+    );
+  }
+
   if (data.user && data.session) {
     await ensureProfileForUser(data.user);
     return encodedRedirect("success", "/dashboard", "注册成功，已自动登录。");

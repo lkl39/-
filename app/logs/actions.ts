@@ -21,6 +21,10 @@ const HYBRID_MAX_GROUPS = 15;
 const SUMMARIZED_MAX_GROUPS = 12;
 const GROUP_NEARBY_LINE_WINDOW = 12;
 const GROUP_SIMILARITY_THRESHOLD = 0.78;
+const DUAL_CHECK_SAMPLE_RATE = 0.02;
+const DUAL_CHECK_MAX_GROUPS = 3;
+const DUAL_CHECK_CONFIDENCE_GAP = 0.18;
+const DUAL_CHECK_TEXT_SIMILARITY_THRESHOLD = 0.45;
 
 type AnalysisMode = "rules_fast" | "hybrid" | "summarized_hybrid";
 
@@ -176,6 +180,107 @@ function selectLlmGroupIndexes(groups: IncidentGroup[], incidents: DetectedIncid
       .slice(0, maxGroups)
       .map((item) => item.index),
   );
+}
+
+
+function getRiskRank(riskLevel: "low" | "medium" | "high") {
+  if (riskLevel === "high") return 3;
+  if (riskLevel === "medium") return 2;
+  return 1;
+}
+
+function tokenizeAnalysisText(text: string) {
+  return text
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(" ")
+    .filter((token) => token.length >= 3);
+}
+
+function hasMeaningfulAnalysisDifference(
+  ruleResult: NormalizedAnalysisResult,
+  llmResult: NormalizedAnalysisResult,
+) {
+  if (getRiskRank(ruleResult.riskLevel) !== getRiskRank(llmResult.riskLevel)) {
+    return true;
+  }
+
+  if (Math.abs(ruleResult.confidence - llmResult.confidence) >= DUAL_CHECK_CONFIDENCE_GAP) {
+    return true;
+  }
+
+  const causeSimilarity = calculateTokenSimilarity(
+    tokenizeAnalysisText(ruleResult.cause),
+    tokenizeAnalysisText(llmResult.cause),
+  );
+
+  return causeSimilarity < DUAL_CHECK_TEXT_SIMILARITY_THRESHOLD;
+}
+
+function selectDualCheckGroupIndexes(ruleOnlyIndexes: number[]) {
+  if (ruleOnlyIndexes.length === 0) {
+    return [] as number[];
+  }
+
+  return ruleOnlyIndexes
+    .filter(() => Math.random() < DUAL_CHECK_SAMPLE_RATE)
+    .slice(0, DUAL_CHECK_MAX_GROUPS);
+}
+
+async function createDualCheckReviewRows(params: {
+  groups: IncidentGroup[];
+  incidents: DetectedIncident[];
+  insertedIncidents: { id: string }[];
+  representativeInputs: IncidentAnalysisInput[];
+  representativeResults: Map<number, NormalizedAnalysisResult>;
+  ruleOnlyIndexes: number[];
+  userId: string;
+  logId: string;
+}) {
+  const sampledGroupIndexes = selectDualCheckGroupIndexes(params.ruleOnlyIndexes);
+
+  if (sampledGroupIndexes.length === 0) {
+    return [] as Array<Record<string, unknown>>;
+  }
+
+  const llmShadowResults = await analyzeIncidents(
+    sampledGroupIndexes.map((index) => params.representativeInputs[index]),
+    { resolveRagContext: resolveKnowledgeBaseContext },
+  );
+
+  return sampledGroupIndexes.flatMap((groupIndex, resultIndex) => {
+    const ruleResult = params.representativeResults.get(groupIndex);
+    const llmResult = llmShadowResults[resultIndex];
+
+    if (!ruleResult || !llmResult || !hasMeaningfulAnalysisDifference(ruleResult, llmResult)) {
+      return [];
+    }
+
+    const representativeMemberIndex = params.groups[groupIndex].memberIndices[0];
+    const incident = params.incidents[params.groups[groupIndex].representativeIndex];
+    const reviewNote =
+      "Dual-check sampled. Rule(" +
+      ruleResult.riskLevel +
+      ", " +
+      ruleResult.confidence.toFixed(2) +
+      ") vs LLM(" +
+      llmResult.riskLevel +
+      ", " +
+      llmResult.confidence.toFixed(2) +
+      ") diverged.";
+
+    return [{
+      log_error_id: params.insertedIncidents[representativeMemberIndex].id,
+      log_id: params.logId,
+      user_id: params.userId,
+      final_error_type: incident.errorType,
+      final_risk_level: llmResult.riskLevel,
+      review_status: "pending",
+      review_note: reviewNote,
+    }];
+  });
 }
 
 async function analyzeRepresentativeGroups(
@@ -354,6 +459,17 @@ export async function createLogUploadAction(formData: FormData) {
       ruleOnlyIndexes,
     );
 
+    const dualCheckReviews = await createDualCheckReviewRows({
+      groups,
+      incidents,
+      insertedIncidents,
+      representativeInputs,
+      representativeResults,
+      ruleOnlyIndexes,
+      userId: user.id,
+      logId: logRecord.id,
+    });
+
     const analyses = groups.flatMap((group, groupIndex) => {
       const result = representativeResults.get(groupIndex);
       if (!result) {
@@ -390,6 +506,16 @@ export async function createLogUploadAction(formData: FormData) {
         .eq("id", logRecord.id);
 
       return encodedRedirect("error", "/dashboard", analysisError.message);
+    }
+
+    if (dualCheckReviews.length > 0) {
+      const { error: reviewInsertError } = await supabase
+        .from("review_cases")
+        .insert(dualCheckReviews);
+
+      if (reviewInsertError) {
+        console.error("Failed to insert dual-check review cases:", reviewInsertError.message);
+      }
     }
   }
 

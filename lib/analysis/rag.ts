@@ -1,5 +1,5 @@
 import type { IncidentAnalysisInput, RagContextItem } from "@/lib/analysis/types";
-import { embedText, hasEmbeddingConfig } from "@/lib/llm/embeddings";
+import { buildEmbeddingInput, embedText, hasEmbeddingConfig } from "@/lib/llm/embeddings";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server-client";
 
@@ -17,18 +17,62 @@ type VectorKnowledgeRow = KnowledgeRow & {
   similarity: number | null;
 };
 
+type HistoricalMissedCaseRow = {
+  title: string;
+  error_type: string | null;
+  source_type: string | null;
+  root_cause: string | null;
+  repair_suggestion: string | null;
+  source: string | null;
+  similarity: number | null;
+};
+
+export type RagRetrievedCase = {
+  title: string;
+  errorType: string | null;
+  similarityScore: number | null;
+  rootCause: string | null;
+  repairSuggestion: string | null;
+  sourceType: string | null;
+  summary: string;
+  source: string;
+};
+
+export type RagResult = {
+  incidentId: string;
+  querySummary: string;
+  retrievedCases: RagRetrievedCase[];
+};
+
+type RankedRetrievedCase = RagRetrievedCase & {
+  rankScore: number;
+  sourceAligned: boolean;
+  dedupeKey: string;
+};
+
+type QueryTerms = ReturnType<typeof buildQueryTerms>;
+
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
 const MAX_DB_ROWS = 30;
 const MAX_CONTEXT_ITEMS = 5;
 const MAX_SEARCH_TERMS = 12;
 const MAX_SCORING_TERMS = 24;
+const MAX_QUERY_SUMMARY_PHRASES = 3;
+const MAX_EMBEDDING_INPUT_LENGTH = 2000;
 const MIN_KEYWORD_SCORE = 6;
 const MIN_GENERIC_KEYWORD_SCORE = 12;
 const MIN_VECTOR_SIMILARITY = 0.55;
 const MIN_GENERIC_VECTOR_SIMILARITY = 0.68;
 const MIN_VECTOR_LEXICAL_SCORE = 4;
 const STRICT_ERROR_TYPES = new Set(["generic_error", "http_5xx", "exception"]);
+
+const SOURCE_TYPE_ALIASES: Record<string, string[]> = {
+  nginx: ["nginx", "web"],
+  postgres: ["postgres", "postgresql", "database"],
+  application: ["application", "runtime", "java", "python", "spring"],
+  system: ["system", "kernel", "service", "linux"],
+};
 
 const ERROR_TYPE_HINTS: Record<string, string[]> = {
   connection_refused: [
@@ -100,18 +144,7 @@ function tokenizeText(value: string) {
 }
 
 function expandSourceHints(sourceType: string) {
-  switch (sourceType) {
-    case "nginx":
-      return ["nginx", "web"];
-    case "postgres":
-      return ["postgres", "postgresql", "database"];
-    case "application":
-      return ["application", "runtime", "java", "python", "spring"];
-    case "system":
-      return ["system", "kernel", "service", "linux"];
-    default:
-      return [];
-  }
+  return SOURCE_TYPE_ALIASES[sourceType] ?? [];
 }
 
 function extractRawPhrases(rawText: string) {
@@ -164,6 +197,23 @@ function buildQueryTerms(input: IncidentAnalysisInput) {
     errorType,
     ruleName,
   };
+}
+
+function buildQuerySummary(queryTerms: QueryTerms) {
+  const segments = [
+    queryTerms.sourceType ? `sourceType=${queryTerms.sourceType}` : null,
+    queryTerms.errorType ? `errorType=${queryTerms.errorType}` : null,
+    queryTerms.ruleName ? `rule=${queryTerms.ruleName}` : null,
+    queryTerms.phrases.length > 0
+      ? `phrases=${queryTerms.phrases.slice(0, MAX_QUERY_SUMMARY_PHRASES).join(" | ")}`
+      : null,
+  ].filter(Boolean);
+
+  if (segments.length > 0) {
+    return segments.join("; ");
+  }
+
+  return queryTerms.rawText.slice(0, 120) || "no-query-context";
 }
 
 function countMatches(value: string, terms: string[], weight: number) {
@@ -283,42 +333,129 @@ function buildKnowledgeSummary(row: KnowledgeRow) {
   return [row.symptom, row.possible_cause, row.solution].filter(Boolean).join(" / ");
 }
 
-function mergeKnowledgeContexts(...groups: RagContextItem[][]) {
-  const merged = new Map<string, RagContextItem>();
+function inferSourceType(row: KnowledgeRow) {
+  const rowText = buildRowText(row);
+
+  for (const [sourceType, hints] of Object.entries(SOURCE_TYPE_ALIASES)) {
+    if (hints.some((hint) => rowText.includes(hint))) {
+      return sourceType;
+    }
+  }
+
+  return null;
+}
+
+function inferErrorType(row: KnowledgeRow, currentErrorType: string) {
+  const rowText = buildRowText(row);
+
+  if (
+    currentErrorType &&
+    (rowText.includes(currentErrorType) ||
+      (ERROR_TYPE_HINTS[currentErrorType] ?? []).some((term) => rowText.includes(term)))
+  ) {
+    return currentErrorType;
+  }
+
+  for (const [errorType, hints] of Object.entries(ERROR_TYPE_HINTS)) {
+    if (hints.some((term) => rowText.includes(term))) {
+      return errorType;
+    }
+  }
+
+  return null;
+}
+
+function toRankedRetrievedCase(params: {
+  row: KnowledgeRow;
+  errorType: string;
+  rankScore: number;
+  sourceAligned: boolean;
+  similarityScore: number | null;
+}) {
+  const source = params.row.source || params.row.category || "knowledge_base";
+
+  return {
+    title: params.row.title,
+    errorType: inferErrorType(params.row, params.errorType),
+    similarityScore: params.similarityScore,
+    rootCause: params.row.possible_cause,
+    repairSuggestion: params.row.solution,
+    sourceType: inferSourceType(params.row),
+    summary: buildKnowledgeSummary(params.row),
+    source,
+    rankScore: params.rankScore,
+    sourceAligned: params.sourceAligned,
+    dedupeKey: `${params.row.title.toLowerCase()}::${source.toLowerCase()}`,
+  } satisfies RankedRetrievedCase;
+}
+
+function mergeRetrievedCases(...groups: RankedRetrievedCase[][]) {
+  const merged = new Map<string, RankedRetrievedCase>();
 
   for (const items of groups) {
     for (const item of items) {
-      const key = item.title.toLowerCase();
-      const existing = merged.get(key);
+      const existing = merged.get(item.dedupeKey);
 
       if (!existing) {
-        merged.set(key, item);
+        merged.set(item.dedupeKey, item);
         continue;
       }
 
-      merged.set(key, {
+      merged.set(item.dedupeKey, {
         ...existing,
+        errorType: existing.errorType ?? item.errorType,
+        similarityScore: Math.max(existing.similarityScore ?? 0, item.similarityScore ?? 0) || null,
+        rootCause: existing.rootCause ?? item.rootCause,
+        repairSuggestion: existing.repairSuggestion ?? item.repairSuggestion,
+        sourceType: existing.sourceType ?? item.sourceType,
         summary: existing.summary.length >= item.summary.length ? existing.summary : item.summary,
-        source: existing.source || item.source,
-        score: Math.max(existing.score ?? 0, item.score ?? 0),
+        rankScore: Math.max(existing.rankScore, item.rankScore),
+        sourceAligned: existing.sourceAligned || item.sourceAligned,
       });
     }
   }
 
   return Array.from(merged.values())
-    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || a.title.localeCompare(b.title))
+    .sort(
+      (a, b) =>
+        b.rankScore - a.rankScore ||
+        Number(b.sourceAligned) - Number(a.sourceAligned) ||
+        (b.similarityScore ?? 0) - (a.similarityScore ?? 0) ||
+        a.title.localeCompare(b.title),
+    )
     .slice(0, MAX_CONTEXT_ITEMS);
 }
 
-async function resolveKeywordKnowledgeContext(
+function stripRetrievedCaseMetadata(item: RankedRetrievedCase): RagRetrievedCase {
+  return {
+    title: item.title,
+    errorType: item.errorType,
+    similarityScore: item.similarityScore,
+    rootCause: item.rootCause,
+    repairSuggestion: item.repairSuggestion,
+    sourceType: item.sourceType,
+    summary: item.summary,
+    source: item.source,
+  };
+}
+
+function toLegacyRagContextItem(item: RankedRetrievedCase): RagContextItem {
+  return {
+    title: item.title,
+    summary: item.summary,
+    source: item.source,
+    score: item.rankScore,
+  };
+}
+
+async function resolveKeywordKnowledgeCases(
   supabase: SupabaseServerClient,
-  input: IncidentAnalysisInput,
+  queryTerms: QueryTerms,
 ) {
-  const { searchTerms, scoringTerms, phrases, rawText, sourceType, errorType, ruleName } =
-    buildQueryTerms(input);
+  const { searchTerms, scoringTerms, phrases, rawText, sourceType, errorType, ruleName } = queryTerms;
 
   if (searchTerms.length === 0) {
-    return [] as RagContextItem[];
+    return [] as RankedRetrievedCase[];
   }
 
   const orQuery = searchTerms
@@ -339,70 +476,82 @@ async function resolveKeywordKnowledgeContext(
     .limit(MAX_DB_ROWS);
 
   if (error || !data) {
-    return [] as RagContextItem[];
+    return [] as RankedRetrievedCase[];
   }
 
   const isGenericError = errorType === "generic_error";
   const isStrictErrorType = STRICT_ERROR_TYPES.has(errorType);
 
   return (data as KnowledgeRow[])
-    .map((row) => ({
-      row,
-      score: scoreKnowledgeRow(row, scoringTerms, phrases, rawText, sourceType, errorType, ruleName),
-      sourceAligned: matchesSourceDomain(row, sourceType),
-    }))
+    .map((row) => {
+      const lexicalScore = scoreKnowledgeRow(
+        row,
+        scoringTerms,
+        phrases,
+        rawText,
+        sourceType,
+        errorType,
+        ruleName,
+      );
+      const sourceAligned = matchesSourceDomain(row, sourceType);
+
+      return {
+        row,
+        lexicalScore,
+        sourceAligned,
+      };
+    })
     .filter((item) => {
       if (isGenericError) {
-        return item.sourceAligned && item.score >= MIN_GENERIC_KEYWORD_SCORE;
+        return item.sourceAligned && item.lexicalScore >= MIN_GENERIC_KEYWORD_SCORE;
       }
 
-      if (item.score < MIN_KEYWORD_SCORE) {
+      if (item.lexicalScore < MIN_KEYWORD_SCORE) {
         return false;
       }
 
       if (isStrictErrorType) {
-        return item.sourceAligned && item.score >= MIN_KEYWORD_SCORE + 6;
+        return item.sourceAligned && item.lexicalScore >= MIN_KEYWORD_SCORE + 6;
       }
 
-      return item.sourceAligned || item.score >= MIN_KEYWORD_SCORE + 4;
+      return item.sourceAligned || item.lexicalScore >= MIN_KEYWORD_SCORE + 4;
     })
     .sort(
       (a, b) =>
         Number(b.sourceAligned) - Number(a.sourceAligned) ||
-        b.score - a.score ||
+        b.lexicalScore - a.lexicalScore ||
         a.row.title.localeCompare(b.row.title),
     )
     .slice(0, MAX_CONTEXT_ITEMS)
-    .map(({ row, score, sourceAligned }) => ({
-      title: row.title,
-      summary: buildKnowledgeSummary(row),
-      source: row.source || row.category || "knowledge_base",
-      score: score + (sourceAligned ? 4 : 0),
-    }));
+    .map(({ row, lexicalScore, sourceAligned }) =>
+      toRankedRetrievedCase({
+        row,
+        errorType,
+        rankScore: lexicalScore + (sourceAligned ? 4 : 0),
+        sourceAligned,
+        similarityScore: null,
+      }),
+    );
 }
 
-async function resolveVectorKnowledgeContext(
+async function resolveVectorKnowledgeCases(
   supabase: SupabaseServerClient,
   input: IncidentAnalysisInput,
+  queryTerms: QueryTerms,
 ) {
   if (!hasEmbeddingConfig()) {
-    return [] as RagContextItem[];
+    return [] as RankedRetrievedCase[];
   }
 
-  const { scoringTerms, phrases, rawText, sourceType, errorType, ruleName } = buildQueryTerms(input);
-  const embeddingInput = [
-    input.sourceType,
-    input.incident.ruleName,
-    input.incident.errorType,
-    input.incident.rawText,
-  ]
-    .filter(Boolean)
-    .join("\n")
-    .slice(0, 2000);
-
+  const { scoringTerms, phrases, rawText, sourceType, errorType, ruleName } = queryTerms;
+  const embeddingInput = buildEmbeddingInput(
+    [input.sourceType, input.incident.ruleName, input.incident.errorType, input.incident.rawText],
+    { maxLength: MAX_EMBEDDING_INPUT_LENGTH },
+  );
   const embedding = await embedText(embeddingInput);
+
   if (!embedding) {
-    return [] as RagContextItem[];
+    return [] as RankedRetrievedCase[];
   }
 
   const { data, error } = await supabase.rpc("match_knowledge_base", {
@@ -411,7 +560,7 @@ async function resolveVectorKnowledgeContext(
   });
 
   if (error || !data) {
-    return [] as RagContextItem[];
+    return [] as RankedRetrievedCase[];
   }
 
   const isGenericError = errorType === "generic_error";
@@ -466,26 +615,100 @@ async function resolveVectorKnowledgeContext(
         a.row.title.localeCompare(b.row.title),
     )
     .slice(0, MAX_CONTEXT_ITEMS)
-    .map(({ row, combinedScore }) => ({
-      title: row.title,
-      summary: buildKnowledgeSummary(row),
-      source: row.source || row.category || "knowledge_base",
-      score: combinedScore,
-    }));
+    .map(({ row, combinedScore, sourceAligned, similarity }) =>
+      toRankedRetrievedCase({
+        row,
+        errorType,
+        rankScore: combinedScore,
+        sourceAligned,
+        similarityScore: similarity,
+      }),
+    );
+}
+
+export async function resolveHistoricalMissedCaseCandidates(
+  input: IncidentAnalysisInput,
+): Promise<RagRetrievedCase[]> {
+  if (!hasSupabaseEnv() || !hasEmbeddingConfig()) {
+    return [];
+  }
+
+  const supabase = await createClient();
+  const embeddingInput = buildEmbeddingInput(
+    [input.sourceType, input.incident.errorType, input.incident.ruleName, input.incident.rawText],
+    { maxLength: MAX_EMBEDDING_INPUT_LENGTH },
+  );
+  const embedding = await embedText(embeddingInput);
+
+  if (!embedding) {
+    return [];
+  }
+
+  const { data, error } = await supabase.rpc("match_historical_missed_cases", {
+    query_embedding: embedding,
+    match_count: MAX_CONTEXT_ITEMS,
+    source_type_filter: normalizeText(input.sourceType) || null,
+  });
+
+  if (error || !data) {
+    return [];
+  }
+
+  return (data as HistoricalMissedCaseRow[]).map((row) => ({
+    title: row.title,
+    errorType: row.error_type,
+    similarityScore: row.similarity,
+    rootCause: row.root_cause,
+    repairSuggestion: row.repair_suggestion,
+    sourceType: row.source_type,
+    summary: [row.root_cause, row.repair_suggestion].filter(Boolean).join(" / "),
+    source: row.source || "historical_missed_cases",
+  }));
+}
+
+export async function resolveRagResult(input: IncidentAnalysisInput): Promise<RagResult> {
+  const queryTerms = buildQueryTerms(input);
+  const incidentId = typeof (input.incident as { incidentId?: unknown }).incidentId === "string"
+    ? ((input.incident as { incidentId?: string }).incidentId ?? "")
+    : "";
+
+  if (!hasSupabaseEnv()) {
+    return {
+      incidentId,
+      querySummary: buildQuerySummary(queryTerms),
+      retrievedCases: [],
+    };
+  }
+
+  const supabase = await createClient();
+  const [keywordCases, vectorCases] = await Promise.all([
+    resolveKeywordKnowledgeCases(supabase, queryTerms),
+    resolveVectorKnowledgeCases(supabase, input, queryTerms),
+  ]);
+
+  const retrievedCases = mergeRetrievedCases(keywordCases, vectorCases).map(stripRetrievedCaseMetadata);
+
+  return {
+    incidentId,
+    querySummary: buildQuerySummary(queryTerms),
+    retrievedCases,
+  };
 }
 
 export async function resolveKnowledgeBaseContext(
   input: IncidentAnalysisInput,
 ): Promise<RagContextItem[]> {
+  const queryTerms = buildQueryTerms(input);
+
   if (!hasSupabaseEnv()) {
     return [];
   }
 
   const supabase = await createClient();
-  const [keywordItems, vectorItems] = await Promise.all([
-    resolveKeywordKnowledgeContext(supabase, input),
-    resolveVectorKnowledgeContext(supabase, input),
+  const [keywordCases, vectorCases] = await Promise.all([
+    resolveKeywordKnowledgeCases(supabase, queryTerms),
+    resolveVectorKnowledgeCases(supabase, input, queryTerms),
   ]);
 
-  return mergeKnowledgeContexts(keywordItems, vectorItems);
+  return mergeRetrievedCases(keywordCases, vectorCases).map(toLegacyRagContextItem);
 }

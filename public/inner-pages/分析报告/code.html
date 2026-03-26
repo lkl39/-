@@ -1,0 +1,833 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>分析报告 - 智能日志分析系统</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&amp;family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@400;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "surface-variant": "#e5e7eb",
+                        "surface": "#ffffff",
+                        "primary-dim": "#7A4E26",
+                        "on-tertiary-fixed-variant": "#62007f",
+                        "inverse-primary": "#8A5A2B",
+                        "error-container": "#a70138",
+                        "secondary-fixed-dim": "#e2b1ff",
+                        "on-surface": "#352E2A",
+                        "error": "#ff6e84",
+                        "secondary-fixed": "#eac4ff",
+                        "secondary-dim": "#B07A47",
+                        "background": "#EBDEC6",
+                        "tertiary": "#C58B52",
+                        "on-primary": "#64006c",
+                        "primary": "#8A5A2B",
+                        "surface-tint": "#8A5A2B",
+                        "error-dim": "#d73357",
+                        "surface-container-highest": "#E7D8C1",
+                        "surface-container": "#F7F2E8",
+                        "on-tertiary-fixed": "#2d003d",
+                        "surface-container-low": "#F3EBDD",
+                        "primary-fixed-dim": "#7A4E26",
+                        "tertiary-dim": "#AE7440",
+                        "tertiary-fixed": "#C58B52",
+                        "tertiary-fixed-dim": "#B9824A",
+                        "tertiary-container": "#B9824A",
+                        "on-secondary-fixed": "#530081",
+                        "secondary-container": "#8c623a",
+                        "on-secondary": "#360056",
+                        "on-primary-fixed-variant": "#6f1076",
+                        "on-error-container": "#ffb2b9",
+                        "secondary": "#B07A47",
+                        "primary-fixed": "#8A5A2B",
+                        "on-primary-fixed": "#3f0044",
+                        "on-error": "#490013",
+                        "inverse-on-surface": "#565554",
+                        "primary-container": "#df7be0",
+                        "surface-bright": "#ffffff",
+                        "surface-container-lowest": "#ffffff",
+                        "on-primary-container": "#430048",
+                        "outline": "#777575",
+                        "on-surface-variant": "#352E2A",
+                        "on-secondary-fixed-variant": "#7b10b9",
+                        "surface-dim": "#f3f4f6",
+                        "outline-variant": "#494847",
+                        "on-tertiary-container": "#420057",
+                        "on-background": "#352E2A",
+                        "on-tertiary": "#54006e",
+                        "surface-container-high": "#EFE4D2",
+                        "on-secondary-container": "#f2d5ff",
+                        "inverse-surface": "#fcf8f8"
+                    },
+                    fontFamily: {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Space Grotesk"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-card {
+            background: #F7F2E8;
+            backdrop-filter: blur(12px);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .obsidian-bg {
+            background-color: #EBDEC6;
+        }
+        .text-glow-primary {
+            text-shadow: 0 0 10px rgba(250, 147, 250, 0.4);
+        }
+            .glass-card,
+        .glass-panel,
+        .obsidian-card,
+        .bg-surface-container,
+        .bg-surface-container-high,
+        .bg-surface-container-highest,
+        .bg-surface-container-low {
+            color: #352E2A;
+        }
+        .glass-card .text-white,
+        .glass-panel .text-white,
+        .obsidian-card .text-white,
+        .bg-surface-container .text-white,
+        .bg-surface-container-high .text-white,
+        .bg-surface-container-highest .text-white,
+        .bg-surface-container-low .text-white,
+        .glass-card .text-white\/90,
+        .glass-panel .text-white\/90,
+        .obsidian-card .text-white\/90,
+        .glass-card .text-white\/80,
+        .glass-panel .text-white\/80,
+        .obsidian-card .text-white\/80,
+        .glass-card .text-white\/70,
+        .glass-panel .text-white\/70,
+        .obsidian-card .text-white\/70,
+        .glass-card .text-white\/60,
+        .glass-panel .text-white\/60,
+        .obsidian-card .text-white\/60,
+        .glass-card .text-white\/50,
+        .glass-panel .text-white\/50,
+        .obsidian-card .text-white\/50,
+        .glass-card .text-white\/40,
+        .glass-panel .text-white\/40,
+        .obsidian-card .text-white\/40,
+        .glass-card .text-white\/30,
+        .glass-panel .text-white\/30,
+        .obsidian-card .text-white\/30 {
+            color: #6B625B !important;
+        }            :root {
+            --unified-text-color: #352E2A;
+        }
+        body,
+        h1, h2, h3, h4, h5, h6,
+        p, span, a, button, label,
+        li, td, th,
+        input, textarea, select {
+            color: var(--unified-text-color) !important;
+        }    </style>
+</head>
+<body class="obsidian-bg text-on-surface font-body selection:bg-primary/30">
+<!-- Side Navigation -->
+<aside class="h-screen w-64 fixed left-0 top-0 flex flex-col bg-[#B57743] shadow-[4px_0_24px_rgba(0,0,0,0.5)] z-[60] hidden md:flex border-r border-white/5">
+<div class="py-8 px-6">
+<h1 class="font-headline font-black text-white text-xl tracking-tight">智能日志分析系统</h1>
+<p class="font-label text-[10px] uppercase tracking-widest text-white/40 mt-1">曜石智能日志平台</p>
+</div>
+<nav class="flex flex-col px-4 space-y-2 mt-4">
+<a class="flex items-center space-x-3 px-4 py-3 rounded-xl text-[#352E2A] hover:text-[#352E2A] hover:bg-[#F7F2E8]/70 transition-all duration-200" href="../工作台/code.html">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-label text-sm uppercase tracking-widest">工作台</span>
+</a>
+<a class="flex items-center space-x-3 px-4 py-3 rounded-xl bg-[#F7F2E8] text-[#352E2A] border-r-4 border-[#A8733A] backdrop-blur-md transition-all duration-300" href="../日志上传/code.html">
+<span class="material-symbols-outlined" style='font-variation-settings: "FILL" 1;'>analytics</span>
+<span class="font-label text-sm uppercase tracking-widest">日志分析</span>
+</a>
+<a class="flex items-center space-x-3 px-4 py-3 rounded-xl text-[#352E2A] hover:text-[#352E2A] hover:bg-[#F7F2E8]/70 transition-all duration-200" href="../问题中心/code.html">
+<span class="material-symbols-outlined">biotech</span>
+<span class="font-label text-sm uppercase tracking-widest">问题处理</span>
+</a>
+<a class="flex items-center space-x-3 px-4 py-3 rounded-xl text-[#352E2A] hover:text-[#352E2A] hover:bg-[#F7F2E8]/70 transition-all duration-200" href="../历史日志存档/code.html">
+<span class="material-symbols-outlined">history_edu</span>
+<span class="font-label text-sm uppercase tracking-widest">历史与知识</span>
+</a>
+<a class="flex items-center space-x-3 px-4 py-3 rounded-xl text-[#352E2A] hover:text-[#352E2A] hover:bg-[#F7F2E8]/70 transition-all duration-200" href="../规则配置管理/code.html">
+<span class="material-symbols-outlined">settings_suggest</span>
+<span class="font-label text-sm uppercase tracking-widest">系统管理</span>
+</a>
+</nav>
+<div class="mt-auto px-6 py-8">
+<button class="w-full py-3 rounded-xl bg-[#F7F2E8] text-[#352E2A] font-bold text-sm shadow-lg hover:bg-[#EFE4D2] active:scale-95 transition-transform mb-6">导出报告</button>
+<div class="flex flex-col space-y-3">
+<a class="flex items-center space-x-2 text-[#352E2A] hover:text-[#352E2A] transition-colors text-xs font-label uppercase" href="#">
+<span class="material-symbols-outlined text-sm">help</span>
+<span>帮助中心</span>
+</a>
+<a class="flex items-center space-x-2 text-[#352E2A] hover:text-[#352E2A] transition-colors text-xs font-label uppercase" href="#">
+<span class="material-symbols-outlined text-sm">description</span>
+<span>技术文档</span>
+</a>
+</div>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="pt-0 pb-12 pl-8 pr-8 md:pl-72 min-h-screen">
+<!-- Top Navigation -->
+<header class="fixed top-0 right-0 left-0 md:left-64 h-16 bg-white/5 backdrop-blur-xl border-b border-white/10 flex items-center justify-between px-8 z-50">
+<div class="flex items-center space-x-4">
+<span class="text-white/60 font-medium">工作台·分析报告</span>
+<span class="text-white/20">/</span>
+<span class="text-white font-bold">报告列表</span>
+</div>
+<div class="flex items-center space-x-6">
+<div class="relative hidden lg:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-white/40 text-sm">search</span>
+<input class="bg-white/5 border-none rounded-full pl-10 pr-4 py-1.5 text-sm w-64 focus:ring-1 focus:ring-primary transition-all" placeholder="搜索数据..." type="text"/>
+</div>
+<div class="flex items-center space-x-4">
+<button class="p-2 rounded-full hover:bg-white/5 text-white/70 transition-colors">
+<span class="material-symbols-outlined">widgets</span>
+</button>
+<button class="p-2 rounded-full hover:bg-white/5 text-white/70 transition-colors relative" id="notificationBellBtn">
+<span class="material-symbols-outlined">notifications</span>
+<span class="hidden absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-error text-[10px] leading-4 text-white text-center" id="notificationBellBadge"></span>
+</button>
+<div class="w-8 h-8 rounded-full border border-primary/30 cursor-pointer relative" id="user-avatar-nav">
+<img alt="用户头像" class="w-full h-full object-cover rounded-full" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDKxvORuVmDZYtE3NianxBmhqHDFlGNIQhdZaqZ_kbEerzfm0VSKHRDubmhDXWaVMlCoOYwSlME0BUwmf3xOvEA1sEj9k6LSzdUYTH0Ze8qq-gB3DT9DWUgGwO4_CUQLgPmStaJdcwhx3uYoBnNSs3kUGyyXnbxSkvcMfsAyjAtve3hUy_oeuD8obins_oVGZu2e9zS8UUjFQPIk1A4Nj88k3eBH7RQQHbsm655peIBdiMt9GUOD3PEDbj_DnwHD2cXDOtQ3gaDjJXA"/>
+<div class="hidden absolute top-full right-0 mt-2 w-48 rounded-xl bg-[#F7F2E8]/95 backdrop-blur-xl border border-[#D8C7AE] shadow-xl z-50" id="userAvatarMenu">
+<a href="../个人页面/code.html" class="block px-4 py-3 text-sm text-[#4A4038] hover:bg-[#EFE4D2] transition-colors border-b border-[#E2D5C2]/80 first:rounded-t-xl">个人页面</a>
+<button id="logoutBtn" class="w-full text-left px-4 py-3 text-sm text-[#4A4038] hover:bg-[#EFE4D2] transition-colors last:rounded-b-xl">退出登录</button>
+</div>
+</div>
+</div>
+</div>
+</header>
+<div class="flex items-center space-x-6">
+<div class="relative hidden lg:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-white/40 text-sm">search</span>
+<input class="bg-white/5 border-none rounded-full pl-10 pr-4 py-1.5 text-sm w-64 focus:ring-1 focus:ring-primary transition-all text-white placeholder:text-white/20" placeholder="搜索数据..." type="text"/>
+</div>
+<div class="flex items-center space-x-4">
+<button class="p-2 rounded-full hover:bg-white/5 text-white/70 transition-colors">
+<span class="material-symbols-outlined">widgets</span>
+</button>
+<button class="p-2 rounded-full hover:bg-white/5 text-white/70 transition-colors relative">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-error rounded-full"></span>
+</button>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-primary/30 cursor-pointer">
+<img alt="用户头像" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDKxvORuVmDZYtE3NianxBmhqHDFlGNIQhdZaqZ_kbEerzfm0VSKHRDubmhDXWaVMlCoOYwSlME0BUwmf3xOvEA1sEj9k6LSzdUYTH0Ze8qq-gB3DT9DWUgGwO4_CUQLgPmStaJdcwhx3uYoBnNSs3kUGyyXnbxSkvcMfsAyjAtve3hUy_oeuD8obins_oVGZu2e9zS8UUjFQPIk1A4Nj88k3eBH7RQQHbsm655peIBdiMt9GUOD3PEDbj_DnwHD2cXDOtQ3gaDjJXA"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Report Header -->
+<header class="flex justify-between items-start mb-10 pt-20">
+<div class="space-y-2">
+<div class="flex items-center gap-3 text-white/50 text-sm font-label uppercase tracking-widest">
+<span class="" style="">报告 ID: ANA-2024-0523-01</span>
+<span class="w-1 h-1 rounded-full bg-white/20"></span>
+<span class="" style="">2024-05-23 14:30</span>
+</div>
+<h2 class="text-4xl font-extrabold font-headline tracking-tight text-white flex items-center gap-4" style="">
+                    Prod-Database-01.log
+                    <div class="flex gap-2">
+<span class="text-xs font-label bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-3 py-1 rounded-full flex items-center gap-1" style="">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> 已完成
+                        </span>
+<span class="text-xs font-label bg-amber-500/20 text-amber-400 border border-amber-500/30 px-3 py-1 rounded-full flex items-center gap-1" style="">
+<span class="material-symbols-outlined text-xs" style="">priority_high</span> 建议复核
+                        </span>
+</div>
+</h2>
+<p class="text-on-surface-variant font-body" style="">分析用时: 1m 24s · 日志大小: 4.2GB</p>
+</div>
+<div class="flex gap-3">
+<button class="glass-card px-4 py-2 rounded-lg text-sm flex items-center gap-2 hover:bg-white/10 transition-colors" id="exportWordBtn" style=""><span class="material-symbols-outlined text-sm" style="">description</span> 导出 Word</button>
+<button class="glass-card px-4 py-2 rounded-lg text-sm flex items-center gap-2 hover:bg-white/10 transition-colors" id="exportPdfBtn" style=""><span class="material-symbols-outlined text-sm" style="">picture_as_pdf</span> 导出 PDF</button>
+<button class="bg-primary/10 border border-primary/30 text-primary px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-primary/20 transition-all" id="submitReviewBtn" style=""><span class="material-symbols-outlined text-sm" style="">assignment_turned_in</span> 提交复核</button>
+</div>
+</header>
+<!-- Summary Cards (Bento Grid Style) -->
+<section class="grid grid-cols-4 gap-6 mb-8">
+<div class="glass-card p-6 rounded-2xl relative overflow-hidden">
+<div class="absolute -right-4 -top-4 w-24 h-24 bg-primary/10 rounded-full blur-3xl"></div>
+<p class="text-white/40 font-label text-xs uppercase tracking-widest mb-2" style="">问题总数</p>
+<h3 class="text-5xl font-black font-headline text-white" style="">128</h3>
+<div class="mt-4 text-xs text-white/30" style="">较昨日分析 +12%</div>
+</div>
+<div class="glass-card p-6 rounded-2xl border-l-4 border-orange-500/50">
+<p class="text-white/40 font-label text-xs uppercase tracking-widest mb-2" style="">高风险问题数</p>
+<h3 class="text-5xl font-black font-headline text-orange-500" style="">12</h3>
+<div class="mt-4 text-xs text-orange-500/50" style="">需立即采取行动</div>
+</div>
+<div class="glass-card p-6 rounded-2xl col-span-1">
+<p class="text-white/40 font-label text-xs uppercase tracking-widest mb-2" style="">主要异常类型</p>
+<h4 class="text-xl font-bold font-body text-white leading-tight" style="">Database Timeout</h4>
+<div class="mt-4 inline-flex items-center gap-2 px-2 py-1 rounded bg-white/5 text-[10px] font-label text-white/40 uppercase" style="">出现次数: 64</div>
+</div>
+<div class="glass-card p-6 rounded-2xl col-span-1 border border-primary/20">
+<p class="text-white/40 font-label text-xs uppercase tracking-widest mb-2" style="">建议优先处理项</p>
+<h4 class="text-xl font-bold font-body text-primary leading-tight" style="">Conn Pool Reconfig</h4>
+<div class="mt-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-sm" style="">bolt</span>
+<span class="text-xs text-primary/70" style="">预期性能提升 40%</span>
+</div>
+</div>
+</section>
+<!-- Chart Section -->
+<section class="grid grid-cols-12 gap-6 mb-8">
+<!-- Problem Distribution (Bar) -->
+<div class="col-span-7 glass-card p-8 rounded-2xl">
+<h3 class="font-headline font-bold text-lg mb-8 flex items-center gap-2" style="">
+<span class="material-symbols-outlined text-primary" style="">bar_chart</span> 问题类型分布
+                </h3>
+<div class="space-y-6">
+<div class="space-y-2">
+<div class="flex justify-between text-xs font-label uppercase tracking-wider text-white/50">
+<span class="" style="">数据库异常</span>
+<span class="" style="">64 (50%)</span>
+</div>
+<div class="h-2 w-full bg-[#E6D9C7] rounded-full overflow-hidden">
+<div class="h-full bg-[#7B5EA7] w-1/2 rounded-full"></div>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between text-xs font-label uppercase tracking-wider text-white/50">
+<span class="" style="">网络异常</span>
+<span class="" style="">32 (25%)</span>
+</div>
+<div class="h-2 w-full bg-[#E6D9C7] rounded-full overflow-hidden">
+<div class="h-full bg-[#2F7A8C] w-1/4 rounded-full"></div>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between text-xs font-label uppercase tracking-wider text-white/50">
+<span class="" style="">权限认证错误</span>
+<span class="" style="">19 (15%)</span>
+</div>
+<div class="h-2 w-full bg-[#E6D9C7] rounded-full overflow-hidden">
+<div class="h-full bg-[#4C8C4A] w-[15%] rounded-full"></div>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between text-xs font-label uppercase tracking-wider text-white/50">
+<span class="" style="">其他</span>
+<span class="" style="">13 (10%)</span>
+</div>
+<div class="h-2 w-full bg-[#E6D9C7] rounded-full overflow-hidden">
+<div class="h-full bg-[#6D6A66] w-[10%] rounded-full"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Risk Level (Ring) -->
+<div class="col-span-5 glass-card p-8 rounded-2xl flex flex-col">
+<h3 class="font-headline font-bold text-lg mb-8 flex items-center gap-2" style="">
+<span class="material-symbols-outlined text-primary" style="">donut_large</span> 风险等级分布
+                </h3>
+<div class="flex-1 flex items-center justify-center gap-8">
+<div class="relative w-40 h-40">
+<svg class="w-full h-full transform -rotate-90" viewbox="0 0 36 36">
+<circle cx="18" cy="18" fill="none" r="16" stroke="rgba(255,255,255,0.05)" stroke-width="3"></circle>
+<!-- High Risk (12/128 = 9.3%) -->
+<circle cx="18" cy="18" fill="none" r="16" stroke="#E53935" stroke-dasharray="9 100" stroke-dashoffset="0" stroke-linecap="round" stroke-width="3"></circle>
+<!-- Med Risk (38/128 = 29.6%) -->
+<circle cx="18" cy="18" fill="none" r="16" stroke="#D8C266" stroke-dasharray="30 100" stroke-dashoffset="-9" stroke-linecap="round" stroke-width="3"></circle>
+<!-- Low Risk (78/128 = 61%) -->
+<circle cx="18" cy="18" fill="none" r="16" stroke="#B9DDBB" stroke-dasharray="61 100" stroke-dashoffset="-39" stroke-linecap="round" stroke-width="3"></circle>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center">
+<span class="text-3xl font-black font-headline" style="">128</span>
+<span class="text-[10px] text-white/40 uppercase tracking-tighter" style="">问题总数</span>
+</div>
+</div>
+<div class="space-y-4">
+<div class="flex items-center gap-3">
+<span class="w-3 h-3 rounded-full bg-[#E53935]"></span>
+<div>
+<p class="text-xs text-white/60 font-label" style="">高风险 (12)</p>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<span class="w-3 h-3 rounded-full bg-[#D8C266]"></span>
+<div>
+<p class="text-xs text-white/60 font-label" style="">中风险 (38)</p>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<span class="w-3 h-3 rounded-full bg-[#B9DDBB]"></span>
+<div>
+<p class="text-xs text-white/60 font-label" style="">低风险 (78)</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Core Insight Section -->
+<section class="mb-12">
+<div class="bg-gradient-to-br from-surface-container-high to-surface-container-low p-[1px] rounded-3xl">
+<div class="bg-transparent backdrop-blur-2xl p-8 rounded-[23px] relative overflow-hidden">
+<div class="absolute right-0 top-0 w-1/2 h-full bg-gradient-to-l from-primary/10 to-transparent pointer-events-none"></div>
+<div class="flex items-center gap-3 mb-6">
+<div class="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary" style="">auto_awesome</span>
+</div>
+<h3 class="text-2xl font-headline font-extrabold tracking-tight" style="">核心分析结论</h3>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+<div class="space-y-6">
+<div>
+<label class="text-[10px] font-label uppercase tracking-widest text-white/40 block mb-2" style="">主要异常原因</label>
+<p class="text-lg text-white font-medium leading-relaxed" style="">数据库连接池耗尽导致高并发下请求超时，造成服务响应链式崩塌。</p>
+</div>
+<div class="flex gap-12">
+<div>
+<label class="text-[10px] font-label uppercase tracking-widest text-white/40 block mb-2" style="">风险等级</label>
+<span class="inline-flex items-center px-3 py-1 rounded-full text-2xl font-black font-headline tracking-tighter border" style="color:#FF0000 !important; background:rgba(255,0,0,0.08); border-color:rgba(255,0,0,0.35);">危急</span>
+</div>
+<div>
+<label class="text-[10px] font-label uppercase tracking-widest text-white/40 block mb-2" style="">人工复核需求</label>
+<span class="text-sm font-bold text-amber-400 bg-amber-400/10 px-3 py-1 rounded-full border border-amber-400/20" style="">强烈建议</span>
+</div>
+</div>
+</div>
+<div class="space-y-6">
+<div class="glass-card p-5 rounded-2xl border-l-2 border-primary">
+<label class="text-[10px] font-label uppercase tracking-widest text-primary block mb-3" style="">建议处理方式</label>
+<ul class="space-y-3">
+<li class="flex items-start gap-3 text-sm text-white/80" style="">
+<span class="material-symbols-outlined text-primary text-sm mt-1" style="">task_alt</span>
+                                        调整数据库连接池 <code class="bg-white/10 px-1.5 rounded text-primary">max-active</code> 至 200。
+                                    </li>
+<li class="flex items-start gap-3 text-sm text-white/80" style="">
+<span class="material-symbols-outlined text-primary text-sm mt-1" style="">task_alt</span>
+                                        优化订单查询索引，减少 SQL 执行时间 (&gt;500ms)。
+                                    </li>
+<li class="flex items-start gap-3 text-sm text-white/80" style="">
+<span class="material-symbols-outlined text-primary text-sm mt-1" style="">task_alt</span>
+                                        立即复核数据库死锁日志以排除潜在事务锁死。
+                                    </li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Problem List Section -->
+<section>
+<div class="flex items-center justify-between mb-6">
+<h3 class="text-xl font-headline font-bold" style="">问题详情列表</h3>
+<div class="flex items-center gap-4">
+<span class="text-xs text-white/40 font-label" style="">排序: 相关性</span>
+<span class="material-symbols-outlined text-white/40 cursor-pointer" style="">filter_list</span>
+</div>
+</div>
+<div class="space-y-4" style=""><span class="material-symbols-outlined text-sm" style="">info</span> 共匹配到 3 个历史相似案例</div>
+</section>
+</main>
+<!-- Background Decorative Gradients -->
+<div class="fixed top-[-10%] left-[-10%] w-[50%] h-[50%] bg-primary/5 rounded-full blur-[120px] pointer-events-none -z-10"></div>
+<div class="fixed bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-secondary/5 rounded-full blur-[120px] pointer-events-none -z-10"></div>
+
+<script>
+    let latestReportPayload = null;
+
+    const exportWordBtn = document.getElementById("exportWordBtn");
+    const exportPdfBtn = document.getElementById("exportPdfBtn");
+    const submitReviewBtn = document.getElementById("submitReviewBtn");
+
+    function getCurrentReportMeta() {
+        const payload = latestReportPayload || {};
+        const log = payload.log || {};
+        const summary = payload.summary || {};
+
+        const fallbackTitleNode = document.querySelector("main header h2");
+        const fallbackTitle = fallbackTitleNode ? fallbackTitleNode.childNodes[0]?.textContent || "分析报告" : "分析报告";
+
+        return {
+            reportId: summary.reportId || "ANA-UNKNOWN",
+            logId: log.id || "",
+            fileName: (log.fileName || fallbackTitle || "analysis-report").trim(),
+            fileSizeLabel: log.fileSizeLabel || "-",
+            statusLabel: log.statusLabel || "-",
+            createdAt: log.createdAt || "-",
+        };
+    }
+
+    function sanitizeFileName(input) {
+        return String(input || "analysis-report")
+            .replace(/[\\/:*?"<>|]+/g, "-")
+            .replace(/\s+/g, "-")
+            .slice(0, 80);
+    }
+
+    function exportWordReport() {
+        if (!latestReportPayload) {
+            window.alert("暂无可导出的报告数据，请稍后重试。");
+            return;
+        }
+
+        const meta = getCurrentReportMeta();
+        const summary = latestReportPayload.summary || {};
+        const detailRows = Array.isArray(latestReportPayload.detailRows) ? latestReportPayload.detailRows : [];
+        const problemTypes = Array.isArray(latestReportPayload.problemTypes) ? latestReportPayload.problemTypes : [];
+
+        const typeRowsHtml = problemTypes.map(function (item) {
+            return "<tr>" +
+                "<td>" + String(item.name || "-") + "</td>" +
+                "<td>" + Number(item.count || 0).toLocaleString("zh-CN") + "</td>" +
+                "<td>" + Number(item.percent || 0) + "%</td>" +
+                "</tr>";
+        }).join("");
+
+        const detailRowsHtml = detailRows.map(function (item) {
+            return "<tr>" +
+                "<td>" + String(item.incidentId || "-") + "</td>" +
+                "<td>" + String(item.type || "-") + "</td>" +
+                "<td>" + String(item.riskLabel || "-") + "</td>" +
+                "<td>" + Math.round(Number(item.confidence || 0) * 100) + "%</td>" +
+                "<td>" + String(item.suggestion || "-") + "</td>" +
+                "</tr>";
+        }).join("");
+
+        const docHtml =
+            "<!doctype html><html><head><meta charset='utf-8'><title>分析报告</title>" +
+            "<style>body{font-family:Arial,\"Microsoft YaHei\",sans-serif;padding:24px;color:#222;}h1{margin:0 0 12px;}" +
+            "h2{margin:18px 0 8px;}table{width:100%;border-collapse:collapse;margin-top:8px;}" +
+            "th,td{border:1px solid #ddd;padding:8px;text-align:left;font-size:13px;}th{background:#f7f7f7;}" +
+            ".meta{margin:8px 0;color:#555;}ul{margin:6px 0 0 18px;}li{margin:4px 0;}</style></head><body>" +
+            "<h1>日志分析报告</h1>" +
+            "<div class='meta'>报告ID：" + meta.reportId + "</div>" +
+            "<div class='meta'>日志文件：" + meta.fileName + "</div>" +
+            "<div class='meta'>分析时间：" + (meta.createdAt === "-" ? "-" : new Date(meta.createdAt).toLocaleString("zh-CN")) + "</div>" +
+            "<div class='meta'>日志大小：" + meta.fileSizeLabel + "；状态：" + meta.statusLabel + "</div>" +
+            "<h2>摘要</h2>" +
+            "<ul>" +
+            "<li>问题总数：" + Number(summary.totalIssues || 0).toLocaleString("zh-CN") + "</li>" +
+            "<li>高风险问题：" + Number(summary.highRiskCount || 0).toLocaleString("zh-CN") + "</li>" +
+            "<li>主要异常类型：" + String(summary.topType || "-") + "</li>" +
+            "<li>建议复核：" + (summary.needsReview ? "是" : "否") + "</li>" +
+            "</ul>" +
+            "<h2>问题类型分布</h2>" +
+            "<table><thead><tr><th>类型</th><th>数量</th><th>占比</th></tr></thead><tbody>" + typeRowsHtml + "</tbody></table>" +
+            "<h2>问题明细</h2>" +
+            "<table><thead><tr><th>事件ID</th><th>类型</th><th>风险</th><th>置信度</th><th>建议</th></tr></thead><tbody>" + detailRowsHtml + "</tbody></table>" +
+            "</body></html>";
+
+        const blob = new Blob([docHtml], { type: "application/msword" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = sanitizeFileName(meta.fileName) + "-分析报告.doc";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+    }
+
+    function exportPdfReport() {
+        if (!latestReportPayload) {
+            window.alert("暂无可导出的报告数据，请稍后重试。");
+            return;
+        }
+
+        const printWindow = window.open("", "_blank", "noopener,noreferrer,width=980,height=760");
+        if (!printWindow) {
+            window.alert("浏览器阻止了弹窗，请允许后重试。");
+            return;
+        }
+
+        const mainNode = document.querySelector("main");
+        const clonedHtml = mainNode ? mainNode.innerHTML : "";
+        printWindow.document.write(
+            "<!doctype html><html><head><meta charset='utf-8'><title>分析报告 PDF</title>" +
+            "<style>body{font-family:Arial,\"Microsoft YaHei\",sans-serif;padding:18px;color:#222;background:#fff;}" +
+            "button{display:none !important;} .glass-card,.glass-panel{border:1px solid #ddd !important;background:#fff !important;}" +
+            "h2,h3,h4,p,span,li,td,th{color:#222 !important;} table{width:100%;border-collapse:collapse;} th,td{border:1px solid #ddd;padding:6px;}" +
+            "code{background:#f4f4f4;padding:1px 4px;border-radius:4px;}</style></head><body>" +
+            clonedHtml +
+            "</body></html>"
+        );
+        printWindow.document.close();
+        printWindow.focus();
+        printWindow.print();
+    }
+
+    function submitForReview() {
+        const meta = getCurrentReportMeta();
+        const query = new URLSearchParams({
+            source: "analysis-report",
+            reportId: meta.reportId,
+            logId: meta.logId,
+            fileName: meta.fileName,
+        });
+
+        const current = Number(localStorage.getItem("pendingHumanReviewCount") || "0");
+        localStorage.setItem("pendingHumanReviewCount", String(Math.max(current, 1)));
+        window.location.href = "../人工复核/code.html?" + query.toString();
+    }
+
+    if (exportWordBtn) {
+        exportWordBtn.addEventListener("click", exportWordReport);
+    }
+
+    if (exportPdfBtn) {
+        exportPdfBtn.addEventListener("click", exportPdfReport);
+    }
+
+    if (submitReviewBtn) {
+        submitReviewBtn.addEventListener("click", submitForReview);
+    }
+
+    const bellBtn = document.getElementById("notificationBellBtn");
+    const bellBadge = document.getElementById("notificationBellBadge");
+    let reviewPopup = document.getElementById("reviewAlertPopup");
+    let closeReviewBtn = document.getElementById("closeReviewAlertBtn");
+    const pendingReviewCount = Number(localStorage.getItem("pendingHumanReviewCount") || "2");
+
+    if (bellBtn && bellBadge) {
+        if (!reviewPopup) {
+            const popup = document.createElement("div");
+            popup.id = "reviewAlertPopup";
+            popup.className = "hidden fixed top-20 right-8 z-[80] w-80 rounded-2xl border border-primary/30 bg-[#F7F2E8]/95 backdrop-blur-xl p-4 shadow-[0_12px_30px_rgba(0,0,0,0.45)]";
+            popup.innerHTML =
+                '<div class="flex items-start gap-3">' +
+                '<span class="material-symbols-outlined text-primary mt-0.5" style="font-variation-settings: \'FILL\' 1;">notification_important</span>' +
+                '<div class="flex-1">' +
+                '<p class="text-sm font-bold text-[#352E2A]">人工复核提醒</p>' +
+                '<p class="text-xs text-[#6B625B] mt-1" id="reviewAlertText"></p>' +
+                '<div class="mt-3 flex items-center gap-2">' +
+                '<a class="px-3 py-1.5 rounded-lg bg-primary/20 text-primary text-xs font-bold hover:bg-primary/30 transition-all" href="../人工复核/code.html">去处理</a>' +
+                '<button class="px-3 py-1.5 rounded-lg bg-[#EFE4D2] text-[#6B625B] text-xs hover:bg-[#E7D8C1] transition-all" id="closeReviewAlertBtn">稍后</button>' +
+                "</div></div></div>";
+            document.body.appendChild(popup);
+            reviewPopup = popup;
+            closeReviewBtn = popup.querySelector("#closeReviewAlertBtn");
+        }
+
+        if (pendingReviewCount > 0) {
+            bellBadge.textContent = pendingReviewCount > 99 ? "99+" : String(pendingReviewCount);
+            bellBadge.classList.remove("hidden");
+            const reviewAlertText = document.getElementById("reviewAlertText");
+            if (reviewAlertText) {
+                reviewAlertText.textContent = "当前有 " + pendingReviewCount + " 条问题需要人工复核";
+            }
+        }
+
+        bellBtn.addEventListener("click", function (e) {
+            e.stopPropagation();
+            if (reviewPopup) {
+                reviewPopup.classList.toggle("hidden");
+            }
+        });
+
+        document.addEventListener("click", function (e) {
+            if (reviewPopup && !reviewPopup.contains(e.target) && !bellBtn.contains(e.target)) {
+                reviewPopup.classList.add("hidden");
+            }
+        });
+
+        if (closeReviewBtn) {
+            closeReviewBtn.addEventListener("click", function () {
+                reviewPopup.classList.add("hidden");
+            });
+        }
+    }
+
+  const userAvatarNav = document.getElementById("user-avatar-nav");
+  const userAvatarMenu = document.getElementById("userAvatarMenu");
+  const logoutBtn = document.getElementById("logoutBtn");
+
+  if (userAvatarNav && userAvatarMenu) {
+    userAvatarNav.addEventListener("click", function (e) {
+      e.stopPropagation();
+      userAvatarMenu.classList.toggle("hidden");
+    });
+
+    document.addEventListener("click", function () {
+      userAvatarMenu.classList.add("hidden");
+    });
+  }
+
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", function () {
+      localStorage.clear();
+      window.location.href = "../登录/code.html";
+    });
+  }
+
+    (async function hydrateAnalysisReportData() {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const logId = params.get("logId");
+            const query = logId ? "?view=analysis-report&logId=" + encodeURIComponent(logId) : "?view=analysis-report";
+            const response = await fetch("/api/inner-data" + query, { credentials: "include" });
+            if (!response.ok) {
+                return;
+            }
+
+            const data = await response.json();
+            if (!data || !data.log || !data.summary) {
+                return;
+            }
+
+            latestReportPayload = data;
+
+            const reportHeader = document.querySelector("main header.flex.justify-between.items-start");
+            if (reportHeader) {
+                const metaSpans = reportHeader.querySelectorAll(".flex.items-center.gap-3 span");
+                if (metaSpans.length >= 3) {
+                    metaSpans[0].textContent = "报告 ID: " + (data.summary.reportId || "-");
+                    metaSpans[2].textContent = data.log.createdAt ? new Date(data.log.createdAt).toLocaleString("zh-CN") : "-";
+                }
+
+                const title = reportHeader.querySelector("h2");
+                if (title) {
+                    const textNode = Array.from(title.childNodes).find(function (node) {
+                        return node.nodeType === Node.TEXT_NODE;
+                    });
+                    if (textNode) {
+                        textNode.nodeValue = " " + (data.log.fileName || "未命名日志") + " ";
+                    }
+
+                    const badgeSpans = title.querySelectorAll(".text-xs.font-label");
+                    if (badgeSpans.length >= 2) {
+                        badgeSpans[0].innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> ' + (data.log.statusLabel || "未知");
+                        badgeSpans[1].innerHTML = '<span class="material-symbols-outlined text-xs">priority_high</span> ' + (data.summary.needsReview ? "建议复核" : "复核可选");
+                    }
+                }
+
+                const subLine = reportHeader.querySelector("p.text-on-surface-variant");
+                if (subLine) {
+                    subLine.textContent = "分析用时: " + (data.detailRows && data.detailRows.length ? "已完成" : "处理中") + " · 日志大小: " + (data.log.fileSizeLabel || "-");
+                }
+            }
+
+            const summarySection = document.querySelector("section.grid.grid-cols-4");
+            if (summarySection) {
+                const h3s = summarySection.querySelectorAll("h3");
+                if (h3s.length >= 2) {
+                    h3s[0].textContent = Number(data.summary.totalIssues || 0).toLocaleString("zh-CN");
+                    h3s[1].textContent = Number(data.summary.highRiskCount || 0).toLocaleString("zh-CN");
+                }
+
+                const h4s = summarySection.querySelectorAll("h4");
+                if (h4s.length >= 2) {
+                    h4s[0].textContent = data.summary.topType || "暂无";
+                    h4s[1].textContent = (data.summary.topSuggestion || "建议进入人工复核确认处理步骤。").slice(0, 24);
+                }
+
+                const hints = summarySection.querySelectorAll(".text-xs");
+                if (hints.length >= 6) {
+                    hints[3].textContent = "出现次数: " + Number(data.summary.topTypeCount || 0);
+                    hints[5].textContent = "平均置信度 " + Math.round(Number(data.summary.avgConfidence || 0) * 100) + "%";
+                }
+            }
+
+            const chartSection = document.querySelector("section.grid.grid-cols-12");
+            if (chartSection) {
+                const typeRows = chartSection.querySelectorAll(".col-span-7 .space-y-2");
+                const types = Array.isArray(data.problemTypes) ? data.problemTypes : [];
+                typeRows.forEach(function (row, index) {
+                    const item = types[index];
+                    if (!item) return;
+                    const labels = row.querySelectorAll(".flex.justify-between span");
+                    if (labels.length >= 2) {
+                        labels[0].textContent = item.name;
+                        labels[1].textContent = item.count + " (" + item.percent + "%)";
+                    }
+                    const bar = row.querySelector(".h-full");
+                    if (bar) {
+                        bar.style.width = item.percent + "%";
+                    }
+                });
+
+                const riskTotal = Number(data.summary.totalIssues || 0);
+                const centerTotal = chartSection.querySelector(".col-span-5 .text-3xl");
+                if (centerTotal) {
+                    centerTotal.textContent = String(riskTotal);
+                }
+
+                const riskTexts = chartSection.querySelectorAll(".col-span-5 .space-y-4 p");
+                if (riskTexts.length >= 3) {
+                    riskTexts[0].textContent = "高风险 (" + Number(data.riskDistribution?.high || 0) + ")";
+                    riskTexts[1].textContent = "中风险 (" + Number(data.riskDistribution?.medium || 0) + ")";
+                    riskTexts[2].textContent = "低风险 (" + Number(data.riskDistribution?.low || 0) + ")";
+                }
+            }
+
+            const insightSection = document.querySelector("section.mb-12");
+            if (insightSection) {
+                const causeText = insightSection.querySelector("p.text-lg");
+                if (causeText) {
+                    causeText.textContent = data.summary.topCause || "暂无可用分析结论，请先完成分析流程。";
+                }
+
+                const riskBadge = insightSection.querySelector("span.inline-flex.items-center.px-3");
+                if (riskBadge) {
+                    riskBadge.textContent = data.summary.highRiskCount > 0 ? "高" : "中";
+                }
+
+                const reviewBadge = insightSection.querySelector("span.text-sm.font-bold.text-amber-400");
+                if (reviewBadge) {
+                    reviewBadge.textContent = data.summary.needsReview ? "建议复核" : "可选复核";
+                }
+
+                const suggestionItems = insightSection.querySelectorAll("ul.space-y-3 li");
+                const detailRows = Array.isArray(data.detailRows) ? data.detailRows : [];
+                suggestionItems.forEach(function (li, index) {
+                    const item = detailRows[index];
+                    if (!item) return;
+                    const textNode = li.childNodes[li.childNodes.length - 1];
+                    if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+                        textNode.nodeValue = " " + (item.suggestion || "建议进入人工复核确认处理步骤。");
+                    }
+                });
+            }
+
+            const problemCountLine = document.querySelector("section:last-of-type .space-y-4");
+            if (problemCountLine) {
+                const count = Array.isArray(data.detailRows) ? data.detailRows.length : 0;
+                problemCountLine.innerHTML = '<span class="material-symbols-outlined text-sm">info</span> 共匹配到 ' + count + ' 个问题样本';
+            }
+        } catch (error) {
+            console.error("analysis report hydration failed:", error);
+        }
+    })();
+</script>
+</body></html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -5,14 +5,16 @@ import { StatusPill } from "@/components/dashboard/status-pill";
 type DashboardShellProps = {
   userEmail: string;
   teamName: string | null;
-  activeView: "overview" | "logs" | "rules" | "reviews" | "account";
+  activeView: "workbench" | "analysis" | "issues" | "history" | "system" | "account";
   children: React.ReactNode;
 };
 
 const navItems = [
-  { key: "overview", href: "/dashboard", label: "首页" },
-  { key: "logs", href: "/dashboard/tasks", label: "数据管理中心" },
-  { key: "reviews", href: "/dashboard/reviews", label: "审核与规则管理" },
+  { key: "workbench", href: "/dashboard", label: "工作台" },
+  { key: "analysis", href: "/dashboard/analyses", label: "分析模块" },
+  { key: "issues", href: "/dashboard/incidents", label: "问题模块" },
+  { key: "history", href: "/dashboard/tasks", label: "历史与知识" },
+  { key: "system", href: "/dashboard/rules", label: "系统管理" },
   { key: "account", href: "/dashboard/account", label: "个人中心" },
 ] as const;
 

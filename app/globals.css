@@ -1,5 +1,6 @@
 ﻿@import "tailwindcss";
 
+/* 基础设置 */
 :root {
   --background: #09131f;
   --foreground: #f8fafc;
@@ -30,111 +31,165 @@ body {
   font-family: var(--font-sans);
 }
 
-::selection {
-  background: rgba(34, 211, 238, 0.35);
-  color: #f8fafc;
+/* 极光背景 */
+.aurora-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
 }
 
-.dashboard-panel {
-  position: relative;
-  transition:
-    transform 220ms ease,
-    border-color 220ms ease,
-    box-shadow 220ms ease,
-    background-color 220ms ease;
-  will-change: transform;
+.aurora-band {
+  position: absolute;
+  left: -12%;
+  width: 124%;
+  height: 62%;
+  bottom: -10%;
+  border-radius: 45% 55% 40% 60% / 60% 45% 55% 40%;
+  filter: blur(52px) saturate(160%);
+  opacity: 0.72;
+  mix-blend-mode: screen;
+  transform-origin: center;
+  will-change: transform, opacity;
 }
 
-.dashboard-panel:hover {
-  transform: translateY(-6px);
-  border-color: rgba(103, 232, 249, 0.28);
-  box-shadow:
-    0 26px 80px rgba(2, 8, 18, 0.38),
-    0 0 0 1px rgba(34, 211, 238, 0.06);
+.aurora-band--blue {
+  background: radial-gradient(ellipse at center, rgba(95, 168, 211, 0.72) 0%, rgba(95, 168, 211, 0.0) 56%);
+  opacity: 0.58;
+  animation: auroraDriftA 19s ease-in-out infinite alternate;
 }
 
-.dashboard-panel::after {
-  content: "";
+.aurora-band--purple {
+  background: radial-gradient(ellipse at center, rgba(161, 107, 255, 0.92) 0%, rgba(161, 107, 255, 0.08) 48%, rgba(161, 107, 255, 0.0) 62%);
+  left: -22%;
+  width: 112%;
+  bottom: -13%;
+  opacity: 0.82;
+  animation: auroraDriftB 23s ease-in-out infinite alternate;
+}
+
+.aurora-band--green {
+  background: radial-gradient(ellipse at center, rgba(84, 214, 161, 0.9) 0%, rgba(84, 214, 161, 0.08) 46%, rgba(84, 214, 161, 0.0) 60%);
+  left: 2%;
+  width: 108%;
+  bottom: -16%;
+  opacity: 0.76;
+  animation: auroraDriftC 27s ease-in-out infinite alternate;
+}
+
+.aurora-fade {
   position: absolute;
   inset: 0;
-  border-radius: inherit;
+  background: linear-gradient(to top, rgba(235, 222, 198, 0.0) 0%, rgba(235, 222, 198, 0.58) 76%, rgba(235, 222, 198, 0.86) 100%);
+}
+
+@keyframes auroraDriftA {
+  0% { transform: translateX(-4%) translateY(2%) scale(1.04) rotate(-3deg); }
+  100% { transform: translateX(4%) translateY(-3%) scale(1.12) rotate(4deg); }
+}
+
+@keyframes auroraDriftB {
+  0% { transform: translateX(5%) translateY(3%) scale(1.08) rotate(2deg); }
+  100% { transform: translateX(-6%) translateY(-4%) scale(1.15) rotate(-4deg); }
+}
+
+@keyframes auroraDriftC {
+  0% { transform: translateX(-3%) translateY(5%) scale(1.0) rotate(1deg); opacity: 0.26; }
+  100% { transform: translateX(7%) translateY(-5%) scale(1.13) rotate(-3deg); opacity: 0.38; }
+}
+
+/* 粒子层 */
+.antigravity-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
   pointer-events: none;
-  opacity: 0;
-  transition: opacity 220ms ease;
-  background:
-    radial-gradient(circle at top, rgba(34, 211, 238, 0.16), transparent 36%),
-    linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.02));
-}
-
-.dashboard-panel:hover::after {
   opacity: 1;
+  mix-blend-mode: normal;
 }
 
-@keyframes toast-in {
-  from {
-    opacity: 0;
-    transform: translate3d(0, -10px, 0) scale(0.98);
-  }
-
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
-  }
+/* 玻璃态卡片 */
+.glass-panel {
+  background: rgba(247, 242, 232, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(138, 90, 43, 0.15);
+  border-radius: 12px;
 }
 
-.hero-line {
-  position: relative;
-  width: fit-content;
-  line-height: 1;
-  text-shadow:
-    0 10px 28px rgba(2, 8, 18, 0.55),
-    0 0 24px rgba(255, 255, 255, 0.08);
-  transform: translateZ(0);
+.glass-card {
+  background: rgba(247, 242, 232, 0.8);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(138, 90, 43, 0.1);
+  border-radius: 8px;
+  transition: all 0.3s ease;
 }
 
-.hero-line::before {
-  content: "";
-  position: absolute;
-  inset: auto 0 -0.08em 0;
-  height: 0.24em;
-  background: linear-gradient(90deg, rgba(34, 211, 238, 0.24), rgba(255, 255, 255, 0));
-  filter: blur(10px);
-  opacity: 0.9;
-  z-index: -1;
+.glass-card:hover {
+  background: rgba(247, 242, 232, 0.9);
+  border-color: rgba(138, 90, 43, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 }
 
-.hero-line-primary {
-  color: #fffbf5;
-  transform: translateX(-0.12em);
-  -webkit-text-stroke: 1px rgba(255, 255, 255, 0.1);
-}
-
-.hero-line-secondary {
-  color: #d7f8ff;
-  transform: translateX(0.18em) rotate(-1.5deg);
-  text-shadow:
-    0 0 28px rgba(34, 211, 238, 0.18),
-    0 10px 28px rgba(2, 8, 18, 0.5);
-}
-
-.hero-line-secondary::before {
-  background: linear-gradient(90deg, rgba(34, 211, 238, 0.34), rgba(34, 211, 238, 0.06));
-}
-
-.hero-line-accent {
-  background: linear-gradient(90deg, #ffffff 0%, #c4f1ff 50%, #fcd34d 100%);
+/* Shiny Text */
+.shiny-text {
+  background-image: linear-gradient(
+    120deg,
+    #352E2A 0%,
+    #352E2A 35%,
+    #F7F2E8 50%,
+    #352E2A 65%,
+    #352E2A 100%
+  );
+  background-size: 200% auto;
+  background-position: 150% center;
   -webkit-background-clip: text;
   background-clip: text;
-  color: transparent;
-  transform: translateX(-0.08em);
+  -webkit-text-fill-color: transparent;
+  display: inline-block;
+  will-change: background-position;
 }
 
-.hero-line-accent::after {
-  content: "";
-  position: absolute;
-  inset: -0.02em 0 0 0;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.2), rgba(252, 211, 77, 0.16));
-  filter: blur(20px);
-  z-index: -1;
+/* 页面布局 */
+.page-container {
+  max-width: 80rem;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+  padding-top: 2rem;
+  padding-bottom: 6rem;
+  position: relative;
+  z-index: 20;
+  padding-top: 8rem;
+}
+
+.section-title {
+  font-size: 2.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: 1rem;
+  color: #352E2A;
+}
+
+.section-subtitle {
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+  color: #6B625B;
+  margin-bottom: 2rem;
+}
+
+/* 响应式 */
+@media (prefers-reduced-motion: reduce) {
+  .aurora-band--blue,
+  .aurora-band--purple,
+  .aurora-band--green {
+    animation: none;
+  }
+  .antigravity-layer {
+    display: none;
+  }
 }
 

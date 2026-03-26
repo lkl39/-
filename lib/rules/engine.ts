@@ -1,6 +1,23 @@
 ﻿import { defaultDetectionRules } from "@/lib/rules/default-rules";
 import type { DetectedIncident, DetectionRule } from "@/lib/rules/types";
 
+export interface RuleDetectionResult {
+  incidentId: string;
+  logId: string;
+  sourceType: string;
+  errorType: string;
+  severity: DetectionRule["riskLevel"];
+  matchedLines: number[];
+  matchedKeywords: string[];
+  snippet: string;
+  sourceRuleIds: string[];
+  ruleName?: string;
+  rawText: string;
+  detectedBy: "rule" | "rule+db";
+}
+
+export type RuleDetectionResultCompat = RuleDetectionResult & DetectedIncident;
+
 function normalizeSourceType(sourceType: string) {
   return sourceType.trim().toLowerCase() || "custom";
 }
@@ -33,6 +50,37 @@ function isStackTraceNoiseLine(line: string) {
   );
 }
 
+function createIncidentId(ruleId: string, lineNumber: number) {
+  return `rule:${ruleId}:${lineNumber}`;
+}
+
+function buildRuleDetectionResult(params: {
+  matchedRule: DetectionRule;
+  normalizedLine: string;
+  lineNumber: number;
+  sourceType: string;
+}): RuleDetectionResultCompat {
+  const { matchedRule, normalizedLine, lineNumber, sourceType } = params;
+
+  return {
+    incidentId: createIncidentId(matchedRule.id, lineNumber),
+    logId: "",
+    sourceType,
+    errorType: matchedRule.errorType,
+    severity: matchedRule.riskLevel,
+    matchedLines: [lineNumber],
+    matchedKeywords: [],
+    snippet: normalizedLine,
+    sourceRuleIds: [matchedRule.id],
+    ruleName: matchedRule.name,
+    rawText: normalizedLine,
+    detectedBy: "rule",
+    ruleId: matchedRule.id,
+    riskLevel: matchedRule.riskLevel,
+    lineNumber,
+  };
+}
+
 export function detectLogIncidents(
   content: string,
   sourceType: string,
@@ -44,7 +92,7 @@ export function detectLogIncidents(
   );
 
   const lines = content.split(/\r\n|\r|\n/);
-  const incidents: DetectedIncident[] = [];
+  const incidents: RuleDetectionResultCompat[] = [];
 
   lines.forEach((line, index) => {
     const normalizedLine = line.trim();
@@ -59,14 +107,14 @@ export function detectLogIncidents(
       return;
     }
 
-    incidents.push({
-      ruleId: matchedRule.id,
-      ruleName: matchedRule.name,
-      errorType: matchedRule.errorType,
-      riskLevel: matchedRule.riskLevel,
-      lineNumber: index + 1,
-      rawText: normalizedLine,
-    });
+    incidents.push(
+      buildRuleDetectionResult({
+        matchedRule,
+        normalizedLine,
+        lineNumber: index + 1,
+        sourceType: normalizedSourceType,
+      }),
+    );
   });
 
   return incidents;

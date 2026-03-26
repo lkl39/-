@@ -1,0 +1,257 @@
+﻿<!DOCTYPE html><html lang="zh-CN"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>忘记密码 - LogIntel 智能日志分析系统</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&amp;family=Inter:wght@300..700&amp;family=Space+Grotesk:wght@300..700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "surface": "#ffffff",
+              "on-background": "#352E2A",
+              "secondary": "#B07A47",
+              "inverse-surface": "#fcf8f8",
+              "tertiary-fixed-dim": "#B9824A",
+              "on-secondary": "#360056",
+              "inverse-on-surface": "#565554",
+              "tertiary-fixed": "#C58B52",
+              "tertiary-container": "#B9824A",
+              "on-tertiary-container": "#420057",
+              "on-tertiary": "#54006e",
+              "on-primary-fixed": "#3f0044",
+              "error-dim": "#d73357",
+              "primary-container": "#df7be0",
+              "surface-container-lowest": "#ffffff",
+              "secondary-fixed-dim": "#e2b1ff",
+              "primary": "#8A5A2B",
+              "outline-variant": "#494847",
+              "on-tertiary-fixed": "#2d003d",
+              "on-primary": "#64006c",
+              "on-secondary-fixed-variant": "#7b10b9",
+              "on-secondary-fixed": "#530081",
+              "secondary-dim": "#B07A47",
+              "tertiary-dim": "#AE7440",
+              "outline": "#777575",
+              "surface-bright": "#ffffff",
+              "surface-tint": "#8A5A2B",
+              "on-error": "#490013",
+              "surface-dim": "#f3f4f6",
+              "error-container": "#a70138",
+              "secondary-fixed": "#eac4ff",
+              "surface-variant": "#e5e7eb",
+              "on-surface": "#352E2A",
+              "surface-container-highest": "#E7D8C1",
+              "on-primary-container": "#430048",
+              "secondary-container": "#8c623a",
+              "tertiary": "#C58B52",
+              "error": "#ff6e84",
+              "on-tertiary-fixed-variant": "#62007f",
+              "on-surface-variant": "#352E2A",
+              "background": "#EBDEC6",
+              "surface-container": "#F7F2E8",
+              "primary-fixed": "#8A5A2B",
+              "on-error-container": "#ffb2b9",
+              "surface-container-high": "#EFE4D2",
+              "surface-container-low": "#F3EBDD",
+              "primary-fixed-dim": "#7A4E26",
+              "primary-dim": "#7A4E26",
+              "on-primary-fixed-variant": "#6f1076",
+              "on-secondary-container": "#f2d5ff",
+              "inverse-primary": "#8A5A2B"
+            },
+            fontFamily: {
+              "headline": ["Manrope"],
+              "body": ["Inter"],
+              "label": ["Space Grotesk"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        body {
+            background-color: #EBDEC6;
+            overflow-x: hidden;
+        }
+        .glass-card {
+            background: #F7F2E8;
+            backdrop-filter: blur(40px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .glow-sphere {
+            filter: blur(120px);
+            opacity: 0.15;
+            pointer-events: none;
+        }
+            .glass-card,
+        .glass-panel,
+        .obsidian-card,
+        .bg-surface-container,
+        .bg-surface-container-high,
+        .bg-surface-container-highest,
+        .bg-surface-container-low {
+            color: #352E2A;
+        }
+        .glass-card .text-white,
+        .glass-panel .text-white,
+        .obsidian-card .text-white,
+        .bg-surface-container .text-white,
+        .bg-surface-container-high .text-white,
+        .bg-surface-container-highest .text-white,
+        .bg-surface-container-low .text-white,
+        .glass-card .text-white\/90,
+        .glass-panel .text-white\/90,
+        .obsidian-card .text-white\/90,
+        .glass-card .text-white\/80,
+        .glass-panel .text-white\/80,
+        .obsidian-card .text-white\/80,
+        .glass-card .text-white\/70,
+        .glass-panel .text-white\/70,
+        .obsidian-card .text-white\/70,
+        .glass-card .text-white\/60,
+        .glass-panel .text-white\/60,
+        .obsidian-card .text-white\/60,
+        .glass-card .text-white\/50,
+        .glass-panel .text-white\/50,
+        .obsidian-card .text-white\/50,
+        .glass-card .text-white\/40,
+        .glass-panel .text-white\/40,
+        .obsidian-card .text-white\/40,
+        .glass-card .text-white\/30,
+        .glass-panel .text-white\/30,
+        .obsidian-card .text-white\/30 {
+            color: #6B625B !important;
+        }            :root {
+            --unified-text-color: #352E2A;
+        }
+        body,
+        h1, h2, h3, h4, h5, h6,
+        p, span, a, button, label,
+        li, td, th,
+        input, textarea, select {
+            color: var(--unified-text-color) !important;
+        }    </style>
+</head>
+<body class="font-body text-on-background selection:bg-primary/30">
+<!-- Ambient Background Lighting -->
+<div class="fixed inset-0 overflow-hidden z-0">
+<div class="absolute top-[-10%] left-[-5%] w-[500px] h-[500px] rounded-full bg-primary glow-sphere"></div>
+<div class="absolute bottom-[5%] right-[-5%] w-[600px] h-[600px] rounded-full bg-secondary glow-sphere"></div>
+<div class="absolute top-[30%] right-[10%] w-[300px] h-[300px] rounded-full bg-tertiary glow-sphere"></div>
+</div>
+<!-- TopNavBar (Shared Component) -->
+<nav class="fixed top-0 w-full flex justify-between items-center px-8 py-4 z-50 bg-white/5 backdrop-blur-xl shadow-[0_32px_64px_rgba(255,255,255,0.06)]">
+<div class="text-xl font-bold text-white tracking-tighter font-headline" style=""><span class="material-symbols-outlined text-primary mr-2 align-middle" style="font-variation-settings: &quot;FILL&quot; 1; font-size: 24px;">bolt</span>智能日志分析系统</div>
+<div class="hidden md:flex gap-8 items-center">
+<a class="text-white/70 hover:text-white transition-colors font-manrope tracking-tight" href="../首页/code.html" style="">返回首页</a>
+</div>
+</nav>
+<!-- Main Content Canvas -->
+<main class="relative z-10 min-h-screen flex items-center justify-center px-6 pt-20 pb-12">
+<div class="w-full max-w-md">
+<!-- Forgot Password Card -->
+<div class="glass-card rounded-[2rem] p-10 md:p-12 relative overflow-hidden group">
+<!-- Top Accent Line -->
+<div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary via-secondary to-tertiary opacity-50"></div>
+<div class="space-y-8">
+<!-- Back Button -->
+<div class="flex items-center gap-2">
+<a href="../登录/code.html" class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined" style="">arrow_back</span>
+</a>
+<span class="text-on-surface-variant text-sm font-label" style="">返回登录</span>
+</div>
+<!-- Header -->
+<div class="space-y-2">
+<h1 class="text-4xl font-headline font-extrabold tracking-tight text-white" style="">密码重置</h1>
+<p class="text-on-surface-variant font-body text-sm" style="">输入您的电子邮箱，我们将向您发送密码重置链接</p>
+</div>
+<!-- Form -->
+<form class="space-y-6">
+<div class="space-y-4">
+<!-- Email Field -->
+<div class="space-y-2">
+<label class="font-label text-xs uppercase tracking-widest text-on-surface-variant ml-1" style="">电子邮箱</label>
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors" style="">mail</span>
+<input class="w-full bg-surface-container-highest border-0 rounded-xl py-4 pl-12 pr-4 text-white placeholder:text-outline focus:ring-2 focus:ring-primary/20 focus:bg-white/10 transition-all outline-none" placeholder="name@company.com" type="email">
+</div>
+<p class="text-[10px] text-outline ml-1" style="">我们会向此邮箱发送重置链接</p>
+</div>
+</div>
+<!-- Submit Button -->
+<button class="w-full bg-white text-black font-headline font-bold py-4 px-6 rounded-full flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-95 transition-all duration-300 shadow-[0_20px_40px_rgba(255,255,255,0.1)]" type="submit" style="">
+                            发送重置链接
+                            <span class="material-symbols-outlined text-lg" style="">send</span>
+</button>
+</form>
+<!-- Divider -->
+<div class="flex items-center gap-4 py-2">
+<div class="h-[1px] flex-1 bg-white/5"></div>
+<span class="font-label text-[10px] text-outline uppercase tracking-widest" style="">或</span>
+<div class="h-[1px] flex-1 bg-white/5"></div>
+</div>
+<!-- Help Section -->
+<div class="bg-white/5 border border-white/10 rounded-xl p-6 space-y-4">
+<div class="flex items-start gap-3">
+<span class="material-symbols-outlined text-secondary flex-shrink-0 mt-1" style="">help</span>
+<div class="space-y-1">
+<p class="font-label text-[10px] uppercase tracking-widest text-on-surface-variant" style="">需要帮助？</p>
+<p class="text-sm text-on-surface-variant font-body" style="">如果您无法访问您的电子邮箱，请联系我们的支持团队。</p>
+</div>
+</div>
+<span class="text-primary text-sm font-semibold flex items-center gap-2" style="">
+                    联系支持
+</span>
+</div>
+</div>
+<!-- Additional Branding Meta -->
+<div class="mt-12 text-center space-y-4">
+<div class="flex justify-center items-center gap-6 opacity-40">
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-sm" style="">verified_user</span>
+<span class="text-[10px] font-label tracking-tighter uppercase" style=""><br></span>
+</div>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-sm" style="">shield</span>
+<span class="text-[10px] font-label tracking-tighter uppercase" style=""><br></span>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer (Shared Component) -->
+<footer class="w-full py-12 px-8 bg-[#0e0e0e] mt-auto">
+<div class="flex flex-col md:flex-row justify-between items-center max-w-7xl mx-auto gap-8">
+<div class="space-y-2 text-center md:text-left">
+<div class="text-lg font-black text-white" style="">智能日志分析系统</div>
+<div class="text-white/40 font-inter text-sm leading-relaxed" style="">© 2024 Intelligent Log Analysis System. Digital Alchemist Protocol.</div>
+</div>
+<div class="flex gap-8 items-center">
+<span class="text-white/40 font-inter text-sm" style="">Privacy Policy</span>
+<span class="text-white/40 font-inter text-sm" style="">Terms of Service</span>
+<span class="text-white/40 font-inter text-sm" style="">Security</span>
+<span class="text-white/40 font-inter text-sm" style="">Status</span>
+</div>
+</div>
+</footer>
+</body></html>
+
+
+
+
+
+
+
+
+

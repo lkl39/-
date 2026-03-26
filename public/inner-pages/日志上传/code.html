@@ -1,0 +1,524 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>日志上传 - 智能日志分析系统</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&amp;family=Inter:wght@400;500;600&amp;family=Space_Grotesk:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "outline": "#777575",
+                        "tertiary-dim": "#AE7440",
+                        "surface-container-low": "#F3EBDD",
+                        "on-error": "#490013",
+                        "on-primary": "#64006c",
+                        "on-secondary-fixed": "#530081",
+                        "secondary-container": "#8c623a",
+                        "outline-variant": "#494847",
+                        "primary-container": "#df7be0",
+                        "background": "#EBDEC6",
+                        "on-tertiary-fixed-variant": "#62007f",
+                        "on-tertiary-fixed": "#2d003d",
+                        "tertiary-fixed-dim": "#B9824A",
+                        "inverse-on-surface": "#565554",
+                        "inverse-surface": "#fcf8f8",
+                        "on-primary-container": "#430048",
+                        "primary-fixed": "#8A5A2B",
+                        "surface-container-lowest": "#ffffff",
+                        "on-primary-fixed": "#3f0044",
+                        "on-secondary-container": "#f2d5ff",
+                        "surface-container": "#F7F2E8",
+                        "surface-variant": "#e5e7eb",
+                        "error": "#ff6e84",
+                        "on-secondary": "#360056",
+                        "surface-tint": "#8A5A2B",
+                        "surface-container-highest": "#E7D8C1",
+                        "secondary": "#B07A47",
+                        "inverse-primary": "#8A5A2B",
+                        "error-container": "#a70138",
+                        "on-secondary-fixed-variant": "#7b10b9",
+                        "on-primary-fixed-variant": "#6f1076",
+                        "primary": "#8A5A2B",
+                        "on-tertiary": "#54006e",
+                        "on-surface": "#352E2A",
+                        "on-tertiary-container": "#420057",
+                        "tertiary-fixed": "#C58B52",
+                        "tertiary": "#C58B52",
+                        "on-background": "#352E2A",
+                        "tertiary-container": "#B9824A",
+                        "secondary-fixed-dim": "#e2b1ff",
+                        "secondary-fixed": "#eac4ff",
+                        "primary-fixed-dim": "#7A4E26",
+                        "on-error-container": "#ffb2b9",
+                        "surface-bright": "#ffffff",
+                        "secondary-dim": "#B07A47",
+                        "surface-container-high": "#EFE4D2",
+                        "primary-dim": "#7A4E26",
+                        "surface-dim": "#f3f4f6",
+                        "surface": "#ffffff",
+                        "error-dim": "#d73357",
+                        "on-surface-variant": "#352E2A"
+                    },
+                    fontFamily: {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Space Grotesk"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body { background-color: #EBDEC6; }
+        .glass-panel {
+            background: #F7F2E8;
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .primary-gradient {
+            background: linear-gradient(135deg, #8A5A2B 0%, #A8733A 50%, #6B4422 100%);
+        }
+        .text-gradient {
+            background: linear-gradient(to right, #8A5A2B, #A8733A, #6B4422);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+            .glass-card,
+        .glass-panel,
+        .obsidian-card,
+        .bg-surface-container,
+        .bg-surface-container-high,
+        .bg-surface-container-highest,
+        .bg-surface-container-low {
+            color: #352E2A;
+        }
+        .glass-card .text-white,
+        .glass-panel .text-white,
+        .obsidian-card .text-white,
+        .bg-surface-container .text-white,
+        .bg-surface-container-high .text-white,
+        .bg-surface-container-highest .text-white,
+        .bg-surface-container-low .text-white,
+        .glass-card .text-white\/90,
+        .glass-panel .text-white\/90,
+        .obsidian-card .text-white\/90,
+        .glass-card .text-white\/80,
+        .glass-panel .text-white\/80,
+        .obsidian-card .text-white\/80,
+        .glass-card .text-white\/70,
+        .glass-panel .text-white\/70,
+        .obsidian-card .text-white\/70,
+        .glass-card .text-white\/60,
+        .glass-panel .text-white\/60,
+        .obsidian-card .text-white\/60,
+        .glass-card .text-white\/50,
+        .glass-panel .text-white\/50,
+        .obsidian-card .text-white\/50,
+        .glass-card .text-white\/40,
+        .glass-panel .text-white\/40,
+        .obsidian-card .text-white\/40,
+        .glass-card .text-white\/30,
+        .glass-panel .text-white\/30,
+        .obsidian-card .text-white\/30 {
+            color: #6B625B !important;
+        }            :root {
+            --unified-text-color: #352E2A;
+        }
+        body,
+        h1, h2, h3, h4, h5, h6,
+        p, span, a, button, label,
+        li, td, th,
+        input, textarea, select {
+            color: var(--unified-text-color) !important;
+        }    </style>
+</head>
+<body class="font-body text-on-background selection:bg-primary/30">
+<!-- SideNavBar (Execution from JSON) -->
+<aside class="h-screen w-64 fixed left-0 top-0 flex flex-col bg-[#B57743] shadow-[4px_0_24px_rgba(0,0,0,0.5)] z-[60] hidden md:flex border-r border-white/5">
+<div class="py-8 px-6">
+<h1 class="font-headline font-black text-white text-xl tracking-tight">智能日志分析系统</h1>
+<p class="font-label text-[10px] uppercase tracking-widest text-white/40 mt-1">曜石智能日志平台</p>
+</div>
+<nav class="flex flex-col px-4 space-y-2 mt-4">
+<a class="flex items-center space-x-3 px-4 py-3 rounded-xl text-[#352E2A] hover:text-[#352E2A] hover:bg-[#F7F2E8]/70 transition-all duration-200" href="../工作台/code.html" style="">
+<span class="material-symbols-outlined" data-icon="dashboard" style="">dashboard</span>
+<span class="font-label text-sm uppercase tracking-widest" style="">工作台</span>
+</a>
+<a class="flex items-center space-x-3 px-4 py-3 rounded-xl bg-[#F7F2E8] text-[#352E2A] border-r-4 border-[#A8733A] backdrop-blur-md transition-all duration-300" href="../日志上传/code.html" style="">
+<span class="material-symbols-outlined" data-icon="analytics" style="">analytics</span>
+<span class="font-label text-sm uppercase tracking-widest" style="">日志分析</span>
+</a>
+<a class="flex items-center space-x-3 px-4 py-3 rounded-xl text-[#352E2A] hover:text-[#352E2A] hover:bg-[#F7F2E8]/70 transition-all duration-200" href="../问题中心/code.html" style="">
+<span class="material-symbols-outlined" data-icon="biotech" style="">biotech</span>
+<span class="font-label text-sm uppercase tracking-widest" style="">问题处理</span>
+</a>
+<a class="flex items-center space-x-3 px-4 py-3 rounded-xl text-[#352E2A] hover:text-[#352E2A] hover:bg-[#F7F2E8]/70 transition-all duration-200" href="../历史日志存档/code.html" style="">
+<span class="material-symbols-outlined" data-icon="history_edu" style="">history_edu</span>
+<span class="font-label text-sm uppercase tracking-widest" style="">历史与知识</span>
+</a>
+<a class="flex items-center space-x-3 px-4 py-3 rounded-xl text-[#352E2A] hover:text-[#352E2A] hover:bg-[#F7F2E8]/70 transition-all duration-200" href="../规则配置管理/code.html" style="">
+<span class="material-symbols-outlined" data-icon="settings" style="">settings</span>
+<span class="font-label text-sm uppercase tracking-widest" style="">系统管理</span>
+</a>
+</nav>
+<div class="mt-auto px-6 py-8">
+<a class="w-full py-3 rounded-xl bg-[#F7F2E8] text-[#352E2A] font-bold shadow-lg hover:bg-[#EFE4D2] active:scale-95 transition-transform block text-center" href="../分析记录/code.html" style="">
+                进入分析记录
+            </a>
+<div class="mt-6 flex flex-col space-y-3">
+<a class="flex items-center space-x-2 text-[#352E2A] hover:text-[#352E2A] transition-colors text-xs font-label uppercase" href="#" style="">
+<span class="material-symbols-outlined text-sm" style="">help</span>
+<span class="" style="">帮助中心</span>
+</a>
+<a class="flex items-center space-x-2 text-[#352E2A] hover:text-[#352E2A] transition-colors text-xs font-label uppercase" href="#" style="">
+<span class="material-symbols-outlined text-sm" style="">description</span>
+<span class="" style="">技术文档</span>
+</a>
+</div>
+</div>
+</aside>
+<!-- TopNavBar (Execution from JSON) -->
+<header class="fixed top-0 right-0 left-0 md:left-64 h-16 bg-white/5 backdrop-blur-xl border-b border-white/10 flex items-center justify-between px-8 z-50">
+<div class="flex items-center space-x-4">
+<span class="text-white/60 font-medium">工作台·日志分析</span>
+<span class="text-white/20">/</span>
+<span class="text-white font-bold">日志上传</span>
+</div>
+<div class="flex items-center space-x-6">
+<div class="relative hidden lg:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-white/40 text-sm">search</span>
+<input class="bg-white/5 border-none rounded-full pl-10 pr-4 py-1.5 text-sm w-64 focus:ring-1 focus:ring-primary transition-all" placeholder="搜索数据..." type="text"/>
+</div>
+<div class="flex items-center space-x-4">
+<button class="p-2 rounded-full hover:bg-white/5 text-white/70 transition-colors">
+<span class="material-symbols-outlined">widgets</span>
+</button>
+<button class="p-2 rounded-full hover:bg-white/5 text-white/70 transition-colors relative" id="notificationBellBtn">
+<span class="material-symbols-outlined">notifications</span>
+<span class="hidden absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-error text-[10px] leading-4 text-white text-center" id="notificationBellBadge"></span>
+</button>
+<div class="w-8 h-8 rounded-full border border-primary/30 cursor-pointer relative" id="user-avatar-nav">
+<img alt="用户头像" class="w-full h-full object-cover rounded-full" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDKxvORuVmDZYtE3NianxBmhqHDFlGNIQhdZaqZ_kbEerzfm0VSKHRDubmhDXWaVMlCoOYwSlME0BUwmf3xOvEA1sEj9k6LSzdUYTH0Ze8qq-gB3DT9DWUgGwO4_CUQLgPmStaJdcwhx3uYoBnNSs3kUGyyXnbxSkvcMfsAyjAtve3hUy_oeuD8obins_oVGZu2e9zS8UUjFQPIk1A4Nj88k3eBH7RQQHbsm655peIBdiMt9GUOD3PEDbj_DnwHD2cXDOtQ3gaDjJXA"/>
+<div class="hidden absolute top-full right-0 mt-2 w-48 rounded-xl bg-[#F7F2E8]/95 backdrop-blur-xl border border-[#D8C7AE] shadow-xl z-50" id="userAvatarMenu">
+<a href="../个人页面/code.html" class="block px-4 py-3 text-sm text-[#4A4038] hover:bg-[#EFE4D2] transition-colors border-b border-[#E2D5C2]/80 first:rounded-t-xl">个人页面</a>
+<button id="logoutBtn" class="w-full text-left px-4 py-3 text-sm text-[#4A4038] hover:bg-[#EFE4D2] transition-colors last:rounded-b-xl">退出登录</button>
+</div>
+</div>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="pt-24 pb-12 pl-8 pr-8 md:pl-72 min-h-screen flex flex-col">
+<div class="max-w-6xl mx-auto w-full px-12 py-12 flex-1 flex flex-col">
+<!-- Header Section -->
+<section class="mb-12">
+<h1 class="text-4xl md:text-5xl font-extrabold font-headline tracking-tight text-white mb-4" style="">上传日志文件</h1>
+<p class="text-on-surface-variant text-lg max-w-2xl leading-relaxed" style="">支持 .log, .txt, .json 等常见格式，系统将自动识别并分析。</p>
+</section>
+<!-- Bento Upload Area -->
+<div class="grid grid-cols-1 gap-8 flex-1">
+<!-- Main Dropzone Card -->
+<div class="glass-panel rounded-3xl p-1 relative overflow-hidden flex flex-col items-center justify-center min-h-[400px] transition-all group hover:border-primary/40">
+<!-- Ambient Glow Effect -->
+<div class="absolute -top-24 -right-24 w-64 h-64 bg-primary/10 rounded-full blur-[80px]"></div>
+<div class="absolute -bottom-24 -left-24 w-64 h-64 bg-secondary/10 rounded-full blur-[80px]"></div>
+<div class="w-full h-full border-2 border-dashed border-white/10 rounded-[22px] flex flex-col items-center justify-center p-8 transition-colors group-hover:bg-white/[0.02]" id="upload-dropzone" role="button" tabindex="0" aria-label="上传文件拖拽区域">
+<div class="mb-6 w-20 h-20 rounded-2xl bg-white/5 flex items-center justify-center border border-white/10 group-hover:scale-110 transition-transform duration-500">
+<span class="material-symbols-outlined text-4xl text-gradient" data-icon="cloud_upload" style="font-variation-settings: &quot;FILL&quot; 1;">cloud_upload</span>
+</div>
+<h3 class="text-2xl font-bold text-white mb-2" style="">点击或拖拽文件至此上传</h3>
+<p class="text-white/40 font-label tracking-widest text-xs uppercase mb-8" style="">Maximum file size: 500MB</p>
+<div class="flex gap-3">
+<span class="px-4 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs font-label text-white/60" style="">.LOG</span>
+<span class="px-4 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs font-label text-white/60" style="">.TXT</span>
+<span class="px-4 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs font-label text-white/60" style="">.JSON</span>
+<span class="px-4 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs font-label text-white/60" style="">.GZ</span>
+</div>
+</div>
+</div>
+<input id="upload-file-input" class="hidden" type="file" multiple accept=".log,.txt,.json,.gz"/>
+<!-- File List / Progress Section -->
+<div class="space-y-4" id="selected-files-list">
+<h4 class="text-sm font-label font-bold text-white/40 px-2 tracking-widest uppercase" style="">已选择的文件</h4>
+</div>
+</div>
+<!-- Action Footer -->
+<footer class="mt-12 flex justify-end items-center gap-6">
+<span class="text-on-surface-variant text-sm flex items-center gap-2" style="">
+<span class="material-symbols-outlined text-sm" data-icon="info" style="">info</span>
+                    分析完成后结果将自动保存至历史记录
+                </span>
+<button class="px-8 py-4 rounded-xl bg-white text-black font-extrabold flex items-center gap-3 transition-all hover:scale-[1.02] active:scale-95 shadow-[0_10px_40px_rgba(255,255,255,0.1)]" id="start-analysis-btn" style="">
+                    开始分析
+                    <span class="material-symbols-outlined" data-icon="arrow_forward" style="">arrow_forward</span>
+</button>
+</footer>
+</div>
+</main>
+<!-- Visual Enhancements (Abstract Backgrounds) -->
+<div class="fixed top-0 right-0 -z-10 w-[600px] h-[600px] opacity-20 pointer-events-none">
+<img alt="" class="w-full h-full object-cover rounded-full blur-[120px]" data-alt="Soft pink and purple abstract light gradient" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAm36cNwrHCBcV6Kn10GGkhn-wuuJAbkx3nWKLoRdUHMcC3RHyOZWoMmql9ynungW0gr57I3Y77OAt6T3Ajt48gjv8QxuKD80omdYAHr43OGnH8ZacH-iBJFWe6Jj5fssWyNOk9QV3_1I8c0HEyd0iiVxE3noccFbpu04WHHwS49QJak45ymsx_uGtYa4sa-idJC-pCMZoG_IJp1kA0lTQufkfowyQz73Iun0_huGcCffQG19z7yR80AQbpFfXzer6cu8H-n4zhSPSt" style="">
+</div>
+<div class="fixed bottom-0 left-64 -z-10 w-[400px] h-[400px] opacity-10 pointer-events-none">
+<img alt="" class="w-full h-full object-cover rounded-full blur-[100px]" data-alt="Deep violet ethereal energy pattern" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCt1EcxrxGl2sm86gyEthRaqUy64O_FsbRqDRdZqgn6b8o_x9S6cgfUmy1gXXD3C3V4sSWZznGvoW2rTBFL4_FJIFD-Mp8lDCyHtvgDE54rc6nsT8Qv9ijb_RrfHenWwLHpT867D0Ky5QDNq0_TiU-OPgfRSs0d7rGcIiZwF5qdUIIRqhqzEsTJu36SJh5fj1ZdClWGoRLuscHezOFjp3Kg_fEnQBG7oSACWjqBhHZpx5vpV8VY21idfC7Barv0hmAwjXqaZJS4JgLr" style="">
+</div>
+<script>
+            const startAnalysisBtn = document.getElementById("start-analysis-btn");
+            const selectedFilesList = document.getElementById("selected-files-list");
+            const uploadDropzone = document.getElementById("upload-dropzone");
+            const uploadFileInput = document.getElementById("upload-file-input");
+
+            function formatFileSize(size) {
+                if (!size || size <= 0) return "0 KB";
+                const mb = size / (1024 * 1024);
+                if (mb < 1) {
+                    return Math.max(1, Math.round(size / 1024)) + " KB";
+                }
+                if (mb >= 1024) {
+                    return (mb / 1024).toFixed(1) + " GB";
+                }
+                return mb.toFixed(1) + " MB";
+            }
+
+            function iconByFileName(fileName) {
+                const name = String(fileName || "").toLowerCase();
+                if (name.endsWith(".json")) {
+                    return { icon: "data_object", iconColor: "text-tertiary", iconBg: "bg-tertiary/10 border-tertiary/20", progressClass: "bg-tertiary" };
+                }
+                return { icon: "description", iconColor: "text-primary", iconBg: "bg-primary/10 border-primary/20", progressClass: "primary-gradient" };
+            }
+
+            function appendSelectedFileCard(file) {
+                if (!selectedFilesList || !file) return;
+
+                const existed = Array.from(selectedFilesList.querySelectorAll("[data-file-card='true']")).some((node) => {
+                    return node.getAttribute("data-file-name") === file.name && node.getAttribute("data-file-size") === String(file.size);
+                });
+                if (existed) return;
+
+                const iconMeta = iconByFileName(file.name);
+                const card = document.createElement("div");
+                card.className = "glass-panel rounded-2xl p-4 flex items-center gap-4 group transition-all hover:bg-white/5";
+                card.setAttribute("data-file-card", "true");
+                card.setAttribute("data-file-name", file.name);
+                card.setAttribute("data-file-size", String(file.size));
+                card.innerHTML =
+                    '<div class="w-12 h-12 rounded-xl flex items-center justify-center border ' + iconMeta.iconBg + '">' +
+                    '<span class="material-symbols-outlined ' + iconMeta.iconColor + '" data-icon="file_icon">' + iconMeta.icon + '</span>' +
+                    '</div>' +
+                    '<div class="flex-1">' +
+                    '<div class="flex justify-between items-center mb-1">' +
+                    '<span class="text-white font-medium">' + file.name + '</span>' +
+                    '<span class="text-xs font-label text-white/40">' + formatFileSize(file.size) + '</span>' +
+                    '</div>' +
+                    '<div class="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">' +
+                    '<div class="' + iconMeta.progressClass + ' h-full w-full rounded-full"></div>' +
+                    '</div>' +
+                    '</div>' +
+                    '<div class="flex items-center gap-2">' +
+                    '<span class="material-symbols-outlined ' + iconMeta.iconColor + ' text-xl" data-icon="check_circle" style="font-variation-settings: &quot;FILL&quot; 1;">check_circle</span>' +
+                    '<button class="p-2 hover:text-error transition-colors" type="button">' +
+                    '<span class="material-symbols-outlined text-lg" data-icon="delete">delete</span>' +
+                    '</button>' +
+                    '</div>';
+
+                selectedFilesList.appendChild(card);
+            }
+
+            function appendSelectedFiles(files) {
+                if (!Array.isArray(files) || files.length === 0) return;
+                files.forEach((file) => appendSelectedFileCard(file));
+                updateSelectedFilesEmptyState();
+            }
+
+            function updateSelectedFilesEmptyState() {
+                if (!selectedFilesList) return;
+                const fileCards = selectedFilesList.querySelectorAll("[data-file-card='true']");
+                const existingEmpty = document.getElementById("selected-files-empty");
+
+                if (fileCards.length === 0) {
+                    if (!existingEmpty) {
+                        const emptyTip = document.createElement("p");
+                        emptyTip.id = "selected-files-empty";
+                        emptyTip.className = "text-sm font-label text-white/50 px-2 py-4";
+                        emptyTip.textContent = "暂无文件，请上传日志后再开始分析。";
+                        selectedFilesList.appendChild(emptyTip);
+                    }
+                } else if (existingEmpty) {
+                    existingEmpty.remove();
+                }
+            }
+
+            if (selectedFilesList) {
+                selectedFilesList.addEventListener("click", (event) => {
+                    const target = event.target;
+                    if (!(target instanceof Element)) return;
+
+                    const actionButton = target.closest("button");
+                    if (!actionButton) return;
+
+                    const icon = actionButton.querySelector("[data-icon]");
+                    const iconName = icon ? icon.getAttribute("data-icon") : "";
+                    if (iconName !== "close" && iconName !== "delete") return;
+
+                    const card = actionButton.closest("[data-file-card='true']");
+                    if (!card) return;
+
+                    card.remove();
+                    updateSelectedFilesEmptyState();
+                });
+            }
+
+            if (uploadDropzone && uploadFileInput) {
+                uploadDropzone.addEventListener("click", () => {
+                    uploadFileInput.click();
+                });
+
+                uploadDropzone.addEventListener("keydown", (event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        uploadFileInput.click();
+                    }
+                });
+
+                uploadDropzone.addEventListener("dragover", (event) => {
+                    event.preventDefault();
+                    uploadDropzone.classList.add("bg-white/[0.04]");
+                });
+
+                uploadDropzone.addEventListener("dragleave", () => {
+                    uploadDropzone.classList.remove("bg-white/[0.04]");
+                });
+
+                uploadDropzone.addEventListener("drop", (event) => {
+                    event.preventDefault();
+                    uploadDropzone.classList.remove("bg-white/[0.04]");
+                    const dropped = event.dataTransfer ? Array.from(event.dataTransfer.files || []) : [];
+                    appendSelectedFiles(dropped);
+                });
+
+                uploadFileInput.addEventListener("change", () => {
+                    const chosen = Array.from(uploadFileInput.files || []);
+                    appendSelectedFiles(chosen);
+                    uploadFileInput.value = "";
+                });
+            }
+
+            if (startAnalysisBtn) {
+                startAnalysisBtn.addEventListener("click", () => {
+                    startAnalysisBtn.disabled = true;
+                    startAnalysisBtn.classList.add("opacity-80", "cursor-not-allowed");
+                    startAnalysisBtn.innerHTML = '分析中...<span class="material-symbols-outlined" data-icon="hourglass_top" style="">hourglass_top</span>';
+                    setTimeout(() => {
+                        window.location.href = "../分析报告/code.html";
+                    }, 900);
+                });
+            }
+
+            updateSelectedFilesEmptyState();
+        </script>
+
+        <script>
+            const bellBtn = document.getElementById("notificationBellBtn");
+            const bellBadge = document.getElementById("notificationBellBadge");
+            let reviewPopup = document.getElementById("reviewAlertPopup");
+            let closeReviewBtn = document.getElementById("closeReviewAlertBtn");
+            const pendingReviewCount = Number(localStorage.getItem("pendingHumanReviewCount") || "2");
+
+            if (bellBtn && bellBadge) {
+                if (!reviewPopup) {
+                    const popup = document.createElement("div");
+                    popup.id = "reviewAlertPopup";
+                    popup.className = "hidden fixed top-20 right-8 z-[80] w-80 rounded-2xl border border-primary/30 bg-[#F7F2E8]/95 backdrop-blur-xl p-4 shadow-[0_12px_30px_rgba(0,0,0,0.45)]";
+                    popup.innerHTML =
+                        '<div class="flex items-start gap-3">' +
+                        '<span class="material-symbols-outlined text-primary mt-0.5" style="font-variation-settings: \'FILL\' 1;">notification_important</span>' +
+                        '<div class="flex-1">' +
+                        '<p class="text-sm font-bold text-[#352E2A]">人工复核提醒</p>' +
+                        '<p class="text-xs text-[#6B625B] mt-1" id="reviewAlertText"></p>' +
+                        '<div class="mt-3 flex items-center gap-2">' +
+                        '<a class="px-3 py-1.5 rounded-lg bg-primary/20 text-primary text-xs font-bold hover:bg-primary/30 transition-all" href="../人工复核/code.html">去处理</a>' +
+                        '<button class="px-3 py-1.5 rounded-lg bg-[#EFE4D2] text-[#6B625B] text-xs hover:bg-[#E7D8C1] transition-all" id="closeReviewAlertBtn">稍后</button>' +
+                        "</div></div></div>";
+                    document.body.appendChild(popup);
+                    reviewPopup = popup;
+                    closeReviewBtn = popup.querySelector("#closeReviewAlertBtn");
+                }
+
+                if (pendingReviewCount > 0) {
+                    bellBadge.textContent = pendingReviewCount > 99 ? "99+" : String(pendingReviewCount);
+                    bellBadge.classList.remove("hidden");
+                    const reviewAlertText = document.getElementById("reviewAlertText");
+                    if (reviewAlertText) {
+                        reviewAlertText.textContent = "当前有 " + pendingReviewCount + " 条问题需要人工复核";
+                    }
+                }
+
+                bellBtn.addEventListener("click", function (e) {
+                    e.stopPropagation();
+                    if (reviewPopup) {
+                        reviewPopup.classList.toggle("hidden");
+                    }
+                });
+
+                document.addEventListener("click", function (e) {
+                    if (reviewPopup && !reviewPopup.contains(e.target) && !bellBtn.contains(e.target)) {
+                        reviewPopup.classList.add("hidden");
+                    }
+                });
+
+                if (closeReviewBtn) {
+                    closeReviewBtn.addEventListener("click", function () {
+                        reviewPopup.classList.add("hidden");
+                    });
+                }
+            }
+
+            const userAvatarNav = document.getElementById("user-avatar-nav");
+            const userAvatarMenu = document.getElementById("userAvatarMenu");
+            const logoutBtn = document.getElementById("logoutBtn");
+
+            if (userAvatarNav && userAvatarMenu) {
+                userAvatarNav.addEventListener("click", function (e) {
+                    e.stopPropagation();
+                    userAvatarMenu.classList.toggle("hidden");
+                });
+
+                document.addEventListener("click", function () {
+                    userAvatarMenu.classList.add("hidden");
+                });
+            }
+
+            if (logoutBtn) {
+                logoutBtn.addEventListener("click", function () {
+                    localStorage.clear();
+                    window.location.href = "../登录/code.html";
+                });
+            }
+        </script>
+</body></html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

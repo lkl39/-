@@ -2,12 +2,16 @@
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
-import { analyzeIncidents } from "@/lib/analysis/orchestrator";
-import type { IncidentAnalysisInput, NormalizedAnalysisResult } from "@/lib/analysis/types";
+import {
+  analyzeRepresentativeGroups,
+  buildRepresentativeAnalysisPlan,
+  buildReviewDecisions,
+  createDualCheckReviewRows,
+  type AnalysisMode,
+} from "@/lib/analysis/orchestrator";
 import { resolveKnowledgeBaseContext } from "@/lib/analysis/rag";
 import { getDynamicDetectionRules } from "@/lib/rules/db-rules";
 import { detectLogIncidents } from "@/lib/rules/engine";
-import type { DetectedIncident } from "@/lib/rules/types";
 import { createClient } from "@/lib/supabase/server-client";
 import { getSupabaseEnv, hasSupabaseEnv } from "@/lib/supabase/env";
 import { encodedRedirect } from "@/lib/utils";
@@ -17,21 +21,15 @@ const LONG_FILE_BYTES = 50 * 1024;
 const SHORT_LINE_COUNT = 20;
 const SHORT_INCIDENT_COUNT = 3;
 const LONG_INCIDENT_COUNT = 20;
-const HYBRID_MAX_GROUPS = 15;
-const SUMMARIZED_MAX_GROUPS = 12;
-const GROUP_NEARBY_LINE_WINDOW = 12;
-const GROUP_SIMILARITY_THRESHOLD = 0.78;
-const DUAL_CHECK_SAMPLE_RATE = 0.02;
-const DUAL_CHECK_MAX_GROUPS = 3;
-const DUAL_CHECK_CONFIDENCE_GAP = 0.18;
-const DUAL_CHECK_TEXT_SIMILARITY_THRESHOLD = 0.45;
 
-type AnalysisMode = "rules_fast" | "hybrid" | "summarized_hybrid";
-
-type IncidentGroup = {
-  representativeIndex: number;
-  memberIndices: number[];
-  signature: string;
+type PendingReviewRow = {
+  log_error_id: string;
+  log_id: string;
+  user_id: string;
+  final_error_type: string | null;
+  final_risk_level: string | null;
+  review_status: string;
+  review_note: string | null;
 };
 
 function getTrimmedValue(formData: FormData, key: string) {
@@ -58,7 +56,11 @@ function createStoragePath(userId: string, fileName: string) {
 }
 
 function resolveAnalysisMode(fileSize: number, lineCount: number, incidentCount: number): AnalysisMode {
-  const isShort = fileSize < SHORT_FILE_BYTES || lineCount <= SHORT_LINE_COUNT || incidentCount <= SHORT_INCIDENT_COUNT;
+  const isShort =
+    fileSize < SHORT_FILE_BYTES ||
+    lineCount <= SHORT_LINE_COUNT ||
+    incidentCount <= SHORT_INCIDENT_COUNT;
+
   if (isShort) {
     return "rules_fast";
   }
@@ -71,248 +73,34 @@ function resolveAnalysisMode(fileSize: number, lineCount: number, incidentCount:
   return "hybrid";
 }
 
-function normalizeIncidentText(rawText: string) {
-  return rawText
-    .toLowerCase()
-    .replace(/\b\d{4}-\d{2}-\d{2}[ t]\d{2}:\d{2}:\d{2}(?:[,.:]\d+)?\b/g, " ")
-    .replace(/\b\d+(?:ms|s|m|h)?\b/g, " # ")
-    .replace(/\b[0-9a-f]{8,}\b/g, " # ")
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
+function mergeReviewRows(
+  baseRows: PendingReviewRow[],
+  extraRows: PendingReviewRow[],
+): PendingReviewRow[] {
+  const rowsByErrorId = new Map<string, PendingReviewRow>();
 
-function tokenizeIncident(rawText: string) {
-  return normalizeIncidentText(rawText)
-    .split(" ")
-    .filter((token) => token.length >= 3);
-}
-
-function calculateTokenSimilarity(a: string[], b: string[]) {
-  if (a.length === 0 || b.length === 0) {
-    return 0;
+  for (const row of baseRows) {
+    rowsByErrorId.set(row.log_error_id, row);
   }
 
-  const aSet = new Set(a);
-  const bSet = new Set(b);
-  let overlap = 0;
+  for (const row of extraRows) {
+    const existing = rowsByErrorId.get(row.log_error_id);
 
-  for (const token of aSet) {
-    if (bSet.has(token)) {
-      overlap += 1;
-    }
-  }
-
-  return overlap / Math.max(aSet.size, bSet.size);
-}
-
-function shouldGroupIncidents(current: DetectedIncident, representative: DetectedIncident) {
-  if (current.errorType !== representative.errorType) {
-    return false;
-  }
-
-  const currentSignature = normalizeIncidentText(current.rawText);
-  const representativeSignature = normalizeIncidentText(representative.rawText);
-
-  if (!currentSignature || !representativeSignature) {
-    return false;
-  }
-
-  if (currentSignature === representativeSignature) {
-    return true;
-  }
-
-  const lineDistance = Math.abs(current.lineNumber - representative.lineNumber);
-  const similarity = calculateTokenSimilarity(
-    tokenizeIncident(current.rawText),
-    tokenizeIncident(representative.rawText),
-  );
-
-  return lineDistance <= GROUP_NEARBY_LINE_WINDOW && similarity >= GROUP_SIMILARITY_THRESHOLD;
-}
-
-function createIncidentGroups(incidents: DetectedIncident[]) {
-  const groups: IncidentGroup[] = [];
-
-  incidents.forEach((incident, index) => {
-    const existingGroup = groups.find((group) =>
-      shouldGroupIncidents(incident, incidents[group.representativeIndex]),
-    );
-
-    if (existingGroup) {
-      existingGroup.memberIndices.push(index);
-      return;
+    if (!existing) {
+      rowsByErrorId.set(row.log_error_id, row);
+      continue;
     }
 
-    groups.push({
-      representativeIndex: index,
-      memberIndices: [index],
-      signature: normalizeIncidentText(incident.rawText),
-    });
-  });
-
-  return groups;
-}
-
-function getRiskWeight(riskLevel: DetectedIncident["riskLevel"]) {
-  if (riskLevel === "high") return 3;
-  if (riskLevel === "medium") return 2;
-  return 1;
-}
-
-function selectLlmGroupIndexes(groups: IncidentGroup[], incidents: DetectedIncident[], analysisMode: AnalysisMode) {
-  if (analysisMode === "rules_fast") {
-    return new Set<number>();
-  }
-
-  const maxGroups = analysisMode === "summarized_hybrid" ? SUMMARIZED_MAX_GROUPS : HYBRID_MAX_GROUPS;
-
-  return new Set(
-    groups
-      .map((group, index) => ({
-        index,
-        score:
-          group.memberIndices.length * 10 +
-          getRiskWeight(incidents[group.representativeIndex].riskLevel) * 5 -
-          incidents[group.representativeIndex].lineNumber / 10000,
-      }))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, maxGroups)
-      .map((item) => item.index),
-  );
-}
-
-
-function getRiskRank(riskLevel: "low" | "medium" | "high") {
-  if (riskLevel === "high") return 3;
-  if (riskLevel === "medium") return 2;
-  return 1;
-}
-
-function tokenizeAnalysisText(text: string) {
-  return text
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .split(" ")
-    .filter((token) => token.length >= 3);
-}
-
-function hasMeaningfulAnalysisDifference(
-  ruleResult: NormalizedAnalysisResult,
-  llmResult: NormalizedAnalysisResult,
-) {
-  if (getRiskRank(ruleResult.riskLevel) !== getRiskRank(llmResult.riskLevel)) {
-    return true;
-  }
-
-  if (Math.abs(ruleResult.confidence - llmResult.confidence) >= DUAL_CHECK_CONFIDENCE_GAP) {
-    return true;
-  }
-
-  const causeSimilarity = calculateTokenSimilarity(
-    tokenizeAnalysisText(ruleResult.cause),
-    tokenizeAnalysisText(llmResult.cause),
-  );
-
-  return causeSimilarity < DUAL_CHECK_TEXT_SIMILARITY_THRESHOLD;
-}
-
-function selectDualCheckGroupIndexes(ruleOnlyIndexes: number[]) {
-  if (ruleOnlyIndexes.length === 0) {
-    return [] as number[];
-  }
-
-  return ruleOnlyIndexes
-    .filter(() => Math.random() < DUAL_CHECK_SAMPLE_RATE)
-    .slice(0, DUAL_CHECK_MAX_GROUPS);
-}
-
-async function createDualCheckReviewRows(params: {
-  groups: IncidentGroup[];
-  incidents: DetectedIncident[];
-  insertedIncidents: { id: string }[];
-  representativeInputs: IncidentAnalysisInput[];
-  representativeResults: Map<number, NormalizedAnalysisResult>;
-  ruleOnlyIndexes: number[];
-  userId: string;
-  logId: string;
-}) {
-  const sampledGroupIndexes = selectDualCheckGroupIndexes(params.ruleOnlyIndexes);
-
-  if (sampledGroupIndexes.length === 0) {
-    return [] as Array<Record<string, unknown>>;
-  }
-
-  const llmShadowResults = await analyzeIncidents(
-    sampledGroupIndexes.map((index) => params.representativeInputs[index]),
-    { resolveRagContext: resolveKnowledgeBaseContext },
-  );
-
-  return sampledGroupIndexes.flatMap((groupIndex, resultIndex) => {
-    const ruleResult = params.representativeResults.get(groupIndex);
-    const llmResult = llmShadowResults[resultIndex];
-
-    if (!ruleResult || !llmResult || !hasMeaningfulAnalysisDifference(ruleResult, llmResult)) {
-      return [];
-    }
-
-    const representativeMemberIndex = params.groups[groupIndex].memberIndices[0];
-    const incident = params.incidents[params.groups[groupIndex].representativeIndex];
-    const reviewNote =
-      "Dual-check sampled. Rule(" +
-      ruleResult.riskLevel +
-      ", " +
-      ruleResult.confidence.toFixed(2) +
-      ") vs LLM(" +
-      llmResult.riskLevel +
-      ", " +
-      llmResult.confidence.toFixed(2) +
-      ") diverged.";
-
-    return [{
-      log_error_id: params.insertedIncidents[representativeMemberIndex].id,
-      log_id: params.logId,
-      user_id: params.userId,
-      final_error_type: incident.errorType,
-      final_risk_level: llmResult.riskLevel,
-      review_status: "pending",
-      review_note: reviewNote,
-    }];
-  });
-}
-
-async function analyzeRepresentativeGroups(
-  inputs: IncidentAnalysisInput[],
-  llmIndexes: number[],
-  ruleOnlyIndexes: number[],
-) {
-  const resultsByIndex = new Map<number, NormalizedAnalysisResult>();
-
-  if (llmIndexes.length > 0) {
-    const llmResults = await analyzeIncidents(
-      llmIndexes.map((index) => inputs[index]),
-      { resolveRagContext: resolveKnowledgeBaseContext },
-    );
-
-    llmIndexes.forEach((index, resultIndex) => {
-      resultsByIndex.set(index, llmResults[resultIndex]);
+    rowsByErrorId.set(row.log_error_id, {
+      ...existing,
+      final_error_type: row.final_error_type ?? existing.final_error_type,
+      final_risk_level: row.final_risk_level ?? existing.final_risk_level,
+      review_status: row.review_status || existing.review_status,
+      review_note: [existing.review_note, row.review_note].filter(Boolean).join(" | ") || null,
     });
   }
 
-  if (ruleOnlyIndexes.length > 0) {
-    const ruleOnlyResults = await analyzeIncidents(
-      ruleOnlyIndexes.map((index) => inputs[index]),
-      { providerId: null, resolveRagContext: resolveKnowledgeBaseContext },
-    );
-
-    ruleOnlyIndexes.forEach((index, resultIndex) => {
-      resultsByIndex.set(index, ruleOnlyResults[resultIndex]);
-    });
-  }
-
-  return resultsByIndex;
+  return Array.from(rowsByErrorId.values());
 }
 
 export async function createLogUploadAction(formData: FormData) {
@@ -434,32 +222,41 @@ export async function createLogUploadAction(formData: FormData) {
       );
     }
 
-    const groups = createIncidentGroups(incidents);
-    const llmGroupIndexes = selectLlmGroupIndexes(groups, incidents, analysisMode);
-    const representativeInputs = groups.map((group) => ({
-      incident: incidents[group.representativeIndex],
-      sourceType,
-      logContent: storedFileText,
-    }));
+    const { groups, representativeInputs, llmIndexes, ruleOnlyIndexes } =
+      buildRepresentativeAnalysisPlan({
+        incidents,
+        sourceType,
+        logContent: storedFileText,
+        analysisMode,
+      });
 
-    const llmIndexes: number[] = [];
-    const ruleOnlyIndexes: number[] = [];
-
-    groups.forEach((_, index) => {
-      if (llmGroupIndexes.has(index)) {
-        llmIndexes.push(index);
-      } else {
-        ruleOnlyIndexes.push(index);
-      }
-    });
-
-    const representativeResults = await analyzeRepresentativeGroups(
-      representativeInputs,
+    const representativeResults = await analyzeRepresentativeGroups({
+      inputs: representativeInputs,
       llmIndexes,
       ruleOnlyIndexes,
-    );
+      resolveRagContext: resolveKnowledgeBaseContext,
+    });
 
-    const dualCheckReviews = await createDualCheckReviewRows({
+    const reviewDecisionRows = buildReviewDecisions({
+      groups,
+      incidents,
+      insertedIncidents,
+      representativeResults,
+      userId: user.id,
+      logId: logRecord.id,
+    })
+      .filter((item) => item.decision.needsReview)
+      .map((item) => ({
+        log_error_id: item.logErrorId,
+        log_id: item.logId,
+        user_id: item.userId,
+        final_error_type: item.decision.finalErrorType,
+        final_risk_level: item.decision.finalRiskLevel,
+        review_status: item.decision.reviewStatus,
+        review_note: item.decision.reviewNote,
+      } satisfies PendingReviewRow));
+
+    const dualCheckReviews = (await createDualCheckReviewRows({
       groups,
       incidents,
       insertedIncidents,
@@ -468,7 +265,8 @@ export async function createLogUploadAction(formData: FormData) {
       ruleOnlyIndexes,
       userId: user.id,
       logId: logRecord.id,
-    });
+      resolveRagContext: resolveKnowledgeBaseContext,
+    })) as PendingReviewRow[];
 
     const analyses = groups.flatMap((group, groupIndex) => {
       const result = representativeResults.get(groupIndex);
@@ -492,9 +290,7 @@ export async function createLogUploadAction(formData: FormData) {
       }));
     });
 
-    const { error: analysisError } = await supabase
-      .from("analysis_results")
-      .insert(analyses);
+    const { error: analysisError } = await supabase.from("analysis_results").insert(analyses);
 
     if (analysisError) {
       await supabase
@@ -508,13 +304,13 @@ export async function createLogUploadAction(formData: FormData) {
       return encodedRedirect("error", "/dashboard", analysisError.message);
     }
 
-    if (dualCheckReviews.length > 0) {
-      const { error: reviewInsertError } = await supabase
-        .from("review_cases")
-        .insert(dualCheckReviews);
+    const reviewRows = mergeReviewRows(reviewDecisionRows, dualCheckReviews);
+
+    if (reviewRows.length > 0) {
+      const { error: reviewInsertError } = await supabase.from("review_cases").insert(reviewRows);
 
       if (reviewInsertError) {
-        console.error("Failed to insert dual-check review cases:", reviewInsertError.message);
+        console.error("Failed to insert review cases:", reviewInsertError.message);
       }
     }
   }

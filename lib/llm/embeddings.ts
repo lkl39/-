@@ -4,6 +4,10 @@
   }>;
 };
 
+export type EmbeddingInputOptions = {
+  maxLength?: number;
+};
+
 function parseEmbeddingDimensions(value: string | undefined) {
   const parsed = Number.parseInt(value ?? "1536", 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 1536;
@@ -27,6 +31,28 @@ function getEmbeddingConfig() {
 export function hasEmbeddingConfig() {
   const config = getEmbeddingConfig();
   return Boolean(config.baseUrl && config.apiKey && config.model);
+}
+
+export function buildEmbeddingInput(
+  parts: Array<string | null | undefined>,
+  options: EmbeddingInputOptions = {},
+) {
+  const content = parts
+    .map((item) => item?.trim() ?? "")
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+
+  if (!content) {
+    return "";
+  }
+
+  const maxLength = options.maxLength;
+  if (!Number.isFinite(maxLength) || !maxLength || maxLength <= 0) {
+    return content;
+  }
+
+  return content.slice(0, maxLength);
 }
 
 export async function embedText(input: string): Promise<number[] | null> {
@@ -77,4 +103,3 @@ export async function embedText(input: string): Promise<number[] | null> {
     clearTimeout(timeoutId);
   }
 }
-

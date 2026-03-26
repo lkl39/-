@@ -13,8 +13,11 @@ export async function updateProfileAction(formData: FormData) {
     return encodedRedirect("error", "/dashboard/account", "Supabase is not configured.");
   }
 
-  const displayName = getTrimmedValue(formData, "displayName");
+  const username = getTrimmedValue(formData, "username");
+  const displayName = getTrimmedValue(formData, "displayName") || username;
   const teamName = getTrimmedValue(formData, "teamName");
+  const bio = getTrimmedValue(formData, "bio");
+  const avatarUrl = getTrimmedValue(formData, "avatarUrl");
 
   const supabase = await createClient();
   const {
@@ -28,8 +31,11 @@ export async function updateProfileAction(formData: FormData) {
   const { error } = await supabase.from("profiles").upsert({
     id: user.id,
     email: user.email ?? null,
+    username: username || null,
     display_name: displayName || null,
     team_name: teamName || null,
+    bio: bio || null,
+    avatar_url: avatarUrl || null,
     updated_at: new Date().toISOString(),
   });
 

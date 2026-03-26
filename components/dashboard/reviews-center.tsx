@@ -4,6 +4,7 @@ import { createDetectionRuleAction } from "@/app/rules/actions";
 import { SubmitButton } from "@/components/auth/submit-button";
 import { SectionCard } from "@/components/dashboard/section-card";
 import { StatusPill } from "@/components/dashboard/status-pill";
+import { toIssueTypeDisplayName } from "@/lib/labels/issue-type";
 
 type ReviewItem = {
   id: string;
@@ -416,8 +417,5 @@ function formatTimestamp(value: string) {
 }
 
 function formatErrorType(value: string) {
-  return value
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
+  return toIssueTypeDisplayName(value);
 }

@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server-client";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
+import { toIssueTypeDisplayName } from "@/lib/labels/issue-type";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -63,6 +64,10 @@ const BUILTIN_EXPORT_TEMPLATES: ExportTemplate[] = [
     builtin: true,
   },
 ];
+
+const AVATAR_BUCKET = "avatars";
+const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
+const ALLOWED_AVATAR_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 const DEFAULT_ACTIVE_EXPORT_TEMPLATE_ID = "pdf-standard";
 
@@ -211,41 +216,8 @@ function toModeLabel(value: "rule_only" | "model_only" | "hybrid") {
   return "Hybrid Mode (混合模式)";
 }
 
-function normalizeIssueTypeKey(value: string | null | undefined) {
-  return String(value ?? "")
-    .trim()
-    .replace(/\s+/g, "_")
-    .replace(/-/g, "_")
-    .toUpperCase();
-}
-
 function toIssueDisplayName(value: string | null | undefined) {
-  const raw = String(value ?? "").trim();
-  if (!raw) return "未知异常";
-
-  const key = normalizeIssueTypeKey(raw);
-  const map: Record<string, string> = {
-    EXCEPTION: "异常",
-    GENERIC_ERROR: "通用错误",
-    TIMEOUT: "超时",
-    CONNECTION_TIMEOUT: "连接超时",
-    CONNECTION_REFUSED: "连接被拒绝",
-    CONNECTION_RESET: "连接重置",
-    HTTP_5XX: "服务端错误（HTTP 5XX）",
-    HTTP_4XX: "客户端错误（HTTP 4XX）",
-    DNS_ERROR: "DNS 解析失败",
-    NETWORK_ERROR: "网络错误",
-    AUTH_ERROR: "鉴权失败",
-    UNAUTHORIZED: "未授权访问",
-    FORBIDDEN: "权限不足",
-    OUT_OF_MEMORY: "内存溢出（OutOfMemory）",
-    MEMORY_LEAK: "内存泄漏",
-    SLOW_QUERY: "慢查询（Slow Query）",
-    HEARTBEAT_LOST: "心跳丢失（Heartbeat Lost）",
-    RATE_LIMIT: "触发限流（Rate Limit）",
-  };
-
-  return map[key] ?? raw;
+  return toIssueTypeDisplayName(value);
 }
 
 function toRuleDescription(
@@ -447,9 +419,9 @@ export async function GET(request: Request) {
         .limit(200),
       supabase
         .from("logs")
-        .select("id, file_name, created_at, status")
+        .select("id, file_name, uploaded_at, status")
         .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
+        .order("uploaded_at", { ascending: false })
         .limit(6),
       supabase
         .from("log_errors")
@@ -513,8 +485,7 @@ export async function GET(request: Request) {
 
     const errorTypeCounts = new Map<string, number>();
     for (const item of errors ?? []) {
-      const raw = (item.error_type ?? "其他").trim();
-      const key = raw.length > 0 ? raw : "其他";
+      const key = toIssueDisplayName(item.error_type ?? "\u5176\u4ed6");
       errorTypeCounts.set(key, (errorTypeCounts.get(key) ?? 0) + 1);
     }
 
@@ -548,7 +519,7 @@ export async function GET(request: Request) {
       recentLogs: (logs ?? []).map((item) => ({
         id: item.id,
         fileName: item.file_name,
-        createdAt: item.created_at,
+        createdAt: item.uploaded_at,
         statusLabel: toLogStatusLabel(item.status),
       })),
       pendingTodos,
@@ -780,9 +751,9 @@ export async function GET(request: Request) {
     const [logsResult, errorsResult, analysesResult, logsStatsResult, knowledgeCountResult] = await Promise.all([
       supabase
         .from("logs")
-        .select("id, file_name, file_size, status, created_at")
+        .select("id, file_name, file_size, status, uploaded_at")
         .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
+        .order("uploaded_at", { ascending: false })
         .limit(100),
       supabase
         .from("log_errors")
@@ -796,9 +767,9 @@ export async function GET(request: Request) {
         .limit(1000),
       supabase
         .from("logs")
-        .select("file_size, created_at")
+        .select("file_size, uploaded_at")
         .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
+        .order("uploaded_at", { ascending: false })
         .limit(5000),
       supabase
         .from("knowledge_base")
@@ -832,7 +803,7 @@ export async function GET(request: Request) {
     monthStart.setHours(0, 0, 0, 0);
 
     const monthTaskCount = statLogs.filter((item) => {
-      const createdAt = new Date(String(item.created_at ?? ""));
+      const createdAt = new Date(String(item.uploaded_at ?? ""));
       return Number.isFinite(createdAt.getTime()) && createdAt >= monthStart;
     }).length;
 
@@ -842,7 +813,7 @@ export async function GET(request: Request) {
       day.setDate(now.getDate() - (7 - index));
       const key = day.toISOString().slice(0, 10);
       const count = statLogs.filter((item) =>
-        String(item.created_at ?? "").startsWith(key),
+        String(item.uploaded_at ?? "").startsWith(key),
       ).length;
 
       return {
@@ -865,7 +836,7 @@ export async function GET(request: Request) {
       rows: (logsResult.data ?? []).map((item) => ({
         id: item.id,
         fileName: item.file_name,
-        createdAt: asIsoDate(item.created_at),
+        createdAt: asIsoDate(item.uploaded_at),
         sizeLabel: fileSizeLabel(item.file_size),
         status: item.status,
         statusLabel: toLogStatusLabel(item.status),
@@ -1166,7 +1137,7 @@ export async function GET(request: Request) {
     const [{ data: profile }, { data: authUser }] = await Promise.all([
       supabase
         .from("profiles")
-        .select("username, display_name, team_name, avatar_url, bio")
+        .select("username, display_name, team_name, avatar_url, bio, updated_at")
         .eq("id", user.id)
         .maybeSingle(),
       supabase.auth.getUser(),
@@ -1179,6 +1150,7 @@ export async function GET(request: Request) {
         teamName: profile?.team_name ?? "",
         avatarUrl: profile?.avatar_url ?? "",
         bio: profile?.bio ?? "",
+        updatedAt: profile?.updated_at ?? "",
         email: authUser.user?.email ?? "",
       },
     });
@@ -1233,14 +1205,14 @@ export async function GET(request: Request) {
           file_name: string | null;
           file_size: number | null;
           status: string | null;
-          created_at: string | null;
+          uploaded_at: string | null;
         }
       | null = null;
 
     if (requestedLogId) {
       const { data } = await supabase
         .from("logs")
-        .select("id, file_name, file_size, status, created_at")
+        .select("id, file_name, file_size, status, uploaded_at")
         .eq("id", requestedLogId)
         .eq("user_id", user.id)
         .maybeSingle();
@@ -1250,9 +1222,9 @@ export async function GET(request: Request) {
     if (!logRecord) {
       const { data } = await supabase
         .from("logs")
-        .select("id, file_name, file_size, status, created_at")
+        .select("id, file_name, file_size, status, uploaded_at")
         .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
+        .order("uploaded_at", { ascending: false })
         .limit(1)
         .maybeSingle();
       logRecord = data;
@@ -1285,7 +1257,7 @@ export async function GET(request: Request) {
 
     const typeCount = new Map<string, number>();
     for (const item of errors) {
-      const key = item.error_type ?? "其他";
+      const key = toIssueDisplayName(item.error_type ?? "\u5176\u4ed6");
       typeCount.set(key, (typeCount.get(key) ?? 0) + 1);
     }
 
@@ -1317,7 +1289,7 @@ export async function GET(request: Request) {
       return {
         id: analysis.id,
         incidentId: analysis.log_error_id,
-        type: error?.error_type ?? "未知异常",
+        type: toIssueDisplayName(error?.error_type ?? "\u672a\u77e5\u5f02\u5e38"),
         riskLevel: toRiskValue(analysis.risk_level),
         riskLabel: toRiskLabel(analysis.risk_level),
         confidence: Number(analysis.confidence ?? 0),
@@ -1334,7 +1306,7 @@ export async function GET(request: Request) {
         fileName: logRecord.file_name ?? "未命名日志",
         fileSizeLabel: fileSizeLabel(logRecord.file_size),
         statusLabel: toLogStatusLabel(logRecord.status),
-        createdAt: asIsoDate(logRecord.created_at),
+        createdAt: asIsoDate(logRecord.uploaded_at),
       },
       summary: {
         reportId: `ANA-${String(logRecord.id).slice(0, 8).toUpperCase()}`,
@@ -1382,6 +1354,62 @@ export async function POST(request: Request) {
   if (contentType.includes("multipart/form-data")) {
     const formData = await request.formData();
     const action = String(formData.get("action") ?? "").trim();
+    if (action === "upload-avatar") {
+      const updatedAt = new Date().toISOString();
+      const file = formData.get("file");
+      if (!(file instanceof File)) {
+        return NextResponse.json({ error: "Missing avatar file." }, { status: 400 });
+      }
+
+      if (!ALLOWED_AVATAR_MIME_TYPES.has(file.type)) {
+        return NextResponse.json(
+          { error: "Avatar must be a JPG, PNG, or WEBP image." },
+          { status: 400 },
+        );
+      }
+
+      if (file.size > AVATAR_MAX_BYTES) {
+        return NextResponse.json(
+          { error: "Avatar image must be 2MB or smaller." },
+          { status: 400 },
+        );
+      }
+
+      const objectPath = `${user.id}/avatar`;
+      const { error: uploadError } = await supabase.storage
+        .from(AVATAR_BUCKET)
+        .upload(objectPath, file, {
+          upsert: true,
+          contentType: file.type || undefined,
+        });
+      if (uploadError) {
+        return NextResponse.json({ error: uploadError.message }, { status: 400 });
+      }
+
+      const { data: publicUrlData } = supabase.storage.from(AVATAR_BUCKET).getPublicUrl(objectPath);
+      const avatarUrl = publicUrlData.publicUrl;
+
+      const { error: profileError } = await supabase.from("profiles").upsert({
+        id: user.id,
+        email: user.email ?? null,
+        avatar_url: avatarUrl,
+        updated_at: updatedAt,
+      });
+      if (profileError) {
+        return NextResponse.json({ error: profileError.message }, { status: 400 });
+      }
+
+      const mergedMetadata = {
+        ...(user.user_metadata ?? {}),
+        avatar_url: avatarUrl,
+      };
+      const { error: updateUserError } = await supabase.auth.updateUser({ data: mergedMetadata });
+      if (updateUserError) {
+        return NextResponse.json({ error: updateUserError.message }, { status: 400 });
+      }
+
+      return NextResponse.json({ ok: true, avatarUrl, updatedAt });
+    }
     if (action !== "upload-export-template-file") {
       return NextResponse.json({ error: "不支持的上传 action 参数" }, { status: 400 });
     }
@@ -1485,9 +1513,9 @@ export async function POST(request: Request) {
   };
 
   if (body.action === "update-profile") {
+    const updatedAt = new Date().toISOString();
     const username = String(body.username ?? body.displayName ?? "").trim();
     const displayName = String(body.displayName ?? body.username ?? "").trim();
-    const teamName = String(body.teamName ?? "").trim();
     const bio = String(body.bio ?? "").trim();
     const rawAvatarUrl = String(body.avatarUrl ?? "").trim();
 
@@ -1507,22 +1535,38 @@ export async function POST(request: Request) {
       }
     }
 
-    const { error } = await supabase.from("profiles").upsert({
+    const profilePayload: {
+      id: string;
+      email: string | null;
+      updated_at: string;
+      username?: string | null;
+      display_name?: string | null;
+      team_name?: string | null;
+      avatar_url?: string | null;
+      bio?: string | null;
+    } = {
       id: user.id,
       email: user.email ?? null,
-      username: username || null,
-      display_name: displayName || null,
-      team_name: teamName || null,
-      avatar_url: avatarUrl,
-      bio: bio || null,
-      updated_at: new Date().toISOString(),
-    });
+      updated_at: updatedAt,
+    };
+
+    profilePayload.username = username || null;
+    profilePayload.display_name = displayName || null;
+    profilePayload.bio = bio || null;
+    profilePayload.avatar_url = avatarUrl;
+
+    if (Object.prototype.hasOwnProperty.call(body, "teamName")) {
+      const teamName = String(body.teamName ?? "").trim();
+      profilePayload.team_name = teamName || null;
+    }
+
+    const { error } = await supabase.from("profiles").upsert(profilePayload);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, avatarUrl, updatedAt });
   }
 
   if (body.action === "update-password") {

@@ -276,6 +276,11 @@
             const selectedFilesList = document.getElementById("selected-files-list");
             const uploadDropzone = document.getElementById("upload-dropzone");
             const uploadFileInput = document.getElementById("upload-file-input");
+            const selectedFiles = [];
+
+            function fileKey(file) {
+                return [file && file.name, file && file.size, file && file.lastModified].join("::");
+            }
 
             function formatFileSize(size) {
                 if (!size || size <= 0) return "0 KB";
@@ -311,6 +316,7 @@
                 card.setAttribute("data-file-card", "true");
                 card.setAttribute("data-file-name", file.name);
                 card.setAttribute("data-file-size", String(file.size));
+                card.setAttribute("data-file-key", fileKey(file));
                 card.innerHTML =
                     '<div class="w-12 h-12 rounded-xl flex items-center justify-center border ' + iconMeta.iconBg + '">' +
                     '<span class="material-symbols-outlined ' + iconMeta.iconColor + '" data-icon="file_icon">' + iconMeta.icon + '</span>' +
@@ -336,7 +342,13 @@
 
             function appendSelectedFiles(files) {
                 if (!Array.isArray(files) || files.length === 0) return;
-                files.forEach((file) => appendSelectedFileCard(file));
+                files.forEach((file) => {
+                    const key = fileKey(file);
+                    const existed = selectedFiles.some((item) => fileKey(item) === key);
+                    if (existed) return;
+                    selectedFiles.push(file);
+                    appendSelectedFileCard(file);
+                });
                 updateSelectedFilesEmptyState();
             }
 
@@ -373,6 +385,11 @@
                     const card = actionButton.closest("[data-file-card='true']");
                     if (!card) return;
 
+                    const cardKey = card.getAttribute("data-file-key");
+                    const index = selectedFiles.findIndex((item) => fileKey(item) === cardKey);
+                    if (index >= 0) {
+                        selectedFiles.splice(index, 1);
+                    }
                     card.remove();
                     updateSelectedFilesEmptyState();
                 });
@@ -414,13 +431,45 @@
             }
 
             if (startAnalysisBtn) {
-                startAnalysisBtn.addEventListener("click", () => {
+                startAnalysisBtn.addEventListener("click", async () => {
+                    if (selectedFiles.length === 0) {
+                        window.alert("请先选择一个日志文件。");
+                        return;
+                    }
+
+                    const originalHtml = startAnalysisBtn.innerHTML;
                     startAnalysisBtn.disabled = true;
                     startAnalysisBtn.classList.add("opacity-80", "cursor-not-allowed");
                     startAnalysisBtn.innerHTML = '分析中...<span class="material-symbols-outlined" data-icon="hourglass_top" style="">hourglass_top</span>';
-                    setTimeout(() => {
-                        window.location.href = "../分析报告/code.html";
-                    }, 900);
+
+                    try {
+                        const formData = new FormData();
+                        formData.append("logFile", selectedFiles[0]);
+                        formData.append("sourceType", "custom");
+
+                        const response = await fetch("/api/logs/upload", {
+                            method: "POST",
+                            body: formData,
+                            credentials: "include",
+                        });
+
+                        const payload = await response.json().catch(() => ({}));
+                        if (!response.ok || !payload || !payload.redirectTo) {
+                            throw new Error(payload && payload.error ? payload.error : "上传分析失败，请稍后重试。");
+                        }
+
+                        if (window.top && window.top.location) {
+                            window.top.location.href = payload.redirectTo;
+                            return;
+                        }
+
+                        window.location.href = payload.redirectTo;
+                    } catch (error) {
+                        window.alert(error instanceof Error ? error.message : "上传分析失败，请稍后重试。");
+                        startAnalysisBtn.disabled = false;
+                        startAnalysisBtn.classList.remove("opacity-80", "cursor-not-allowed");
+                        startAnalysisBtn.innerHTML = originalHtml;
+                    }
                 });
             }
 

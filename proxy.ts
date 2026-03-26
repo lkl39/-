@@ -18,9 +18,9 @@ export async function proxy(request: NextRequest) {
     } = await sessionResponse!.supabase.auth.getUser();
 
     if (!user) {
-      const loginUrl = new URL("/", request.url);
+      const loginUrl = new URL("/login", request.url);
       loginUrl.searchParams.set("status", "error");
-      loginUrl.searchParams.set("message", "Please sign in before opening the dashboard.");
+      loginUrl.searchParams.set("message", "\u8bf7\u5148\u767b\u5f55\u540e\u518d\u8bbf\u95ee\u5de5\u4f5c\u53f0\u3002");
       return NextResponse.redirect(loginUrl);
     }
   }

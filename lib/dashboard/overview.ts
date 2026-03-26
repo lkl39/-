@@ -1,3 +1,5 @@
+import { toIssueTypeDisplayName } from "@/lib/labels/issue-type";
+
 type LogModeRow = {
   analysis_mode: string | null;
   status: string | null;
@@ -14,10 +16,7 @@ type AnalysisRow = {
 };
 
 function labelizeErrorType(value: string) {
-  return value
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
+  return toIssueTypeDisplayName(value);
 }
 
 function normalizeConfidence(value: number | string | null) {

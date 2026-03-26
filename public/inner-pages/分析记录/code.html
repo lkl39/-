@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 
 <html lang="zh-CN"><head>
 <meta charset="utf-8"/>
@@ -321,7 +321,7 @@
 <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider risk-high">高风险</span>
 </td>
 <td class="px-6 py-5 text-right">
-<a class="text-primary text-xs font-bold hover:underline transition-all" href="../分析报告/code.html">查看详情</a>
+<a class="text-primary text-xs font-bold hover:underline transition-all" href="/dashboard/analyses" target="_top">查看详情</a>
 </td>
 </tr>
 <tr class="hover:bg-white/5 transition-colors group">
@@ -369,7 +369,7 @@
 <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider risk-low">低风险</span>
 </td>
 <td class="px-6 py-5 text-right">
-<a class="text-primary text-xs font-bold hover:underline transition-all" href="../分析报告/code.html">查看详情</a>
+<a class="text-primary text-xs font-bold hover:underline transition-all" href="/dashboard/analyses" target="_top">查看详情</a>
 </td>
 </tr>
 <tr class="hover:bg-white/5 transition-colors group">
@@ -417,7 +417,7 @@
 <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider risk-medium">中风险</span>
 </td>
 <td class="px-6 py-5 text-right">
-<a class="text-primary text-xs font-bold hover:underline transition-all" href="../分析报告/code.html">查看详情</a>
+<a class="text-primary text-xs font-bold hover:underline transition-all" href="/dashboard/analyses" target="_top">查看详情</a>
 </td>
 </tr>
 </tbody>
@@ -568,7 +568,7 @@
                     '<td class="px-6 py-5"><span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ' + riskClass + '">' + risk + '</span></td>' +
                     '<td class="px-6 py-5 text-right">' +
                     (canView
-                        ? '<a class="text-primary text-xs font-bold hover:underline transition-all" href="../分析报告/code.html?logId=' + encodeURIComponent(String(row.id || "")) + '">查看详情</a>'
+                        ? '<a class="text-primary text-xs font-bold hover:underline transition-all" href="/dashboard/analyses?logId=' + encodeURIComponent(String(row.id || "")) + '" target="_top">查看详情</a>'
                         : '<button class="text-white/20 text-xs font-bold cursor-not-allowed">查看详情</button>') +
                     '</td>' +
                     '</tr>';

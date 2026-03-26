@@ -268,6 +268,16 @@
     const newPwd = document.getElementById("newPwd");
     const confirmPwd = document.getElementById("confirmPwd");
     const pwdHint = document.getElementById("pwdHint");
+    let selectedAvatarFile = null;
+
+    function resolveAvatarSrc(url, version) {
+      if (typeof url !== "string" || !url) {
+        return defaultAvatarSrc;
+      }
+
+      const separator = url.indexOf("?") >= 0 ? "&" : "?";
+      return version ? url + separator + "v=" + encodeURIComponent(version) : url;
+    }
 
     async function loadProfile() {
       try {
@@ -299,7 +309,7 @@
         }
 
         if (avatarPreview && typeof profile.avatarUrl === "string" && profile.avatarUrl) {
-          avatarPreview.src = profile.avatarUrl;
+          avatarPreview.src = resolveAvatarSrc(profile.avatarUrl, profile.updatedAt);
         }
       } catch (error) {
         console.error("load profile failed:", error);
@@ -313,6 +323,7 @@
     avatarInput.addEventListener("change", function () {
       const file = avatarInput.files && avatarInput.files[0];
       if (!file) return;
+      selectedAvatarFile = file;
       const reader = new FileReader();
       reader.onload = function (event) {
         avatarPreview.src = event.target && event.target.result ? event.target.result : avatarPreview.src;
@@ -325,6 +336,45 @@
         const value = avatarUrlInput.value.trim();
         avatarPreview.src = value || defaultAvatarSrc;
       });
+    }
+
+    async function uploadAvatarIfNeeded() {
+      if (!selectedAvatarFile) {
+        return avatarUrlInput ? avatarUrlInput.value.trim() : "";
+      }
+
+      const formData = new FormData();
+      formData.append("action", "upload-avatar");
+      formData.append("file", selectedAvatarFile);
+
+      const uploadResponse = await fetch("/api/inner-data", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+
+      if (!uploadResponse.ok) {
+        const payload = await uploadResponse.json().catch(function () { return {}; });
+        throw new Error(payload.error || "头像上传失败");
+      }
+
+      const payload = await uploadResponse.json().catch(function () { return {}; });
+      const uploadedAvatarUrl =
+        payload && typeof payload.avatarUrl === "string" ? payload.avatarUrl : "";
+
+      if (avatarUrlInput) {
+        avatarUrlInput.value = uploadedAvatarUrl;
+      }
+
+      if (avatarPreview && uploadedAvatarUrl) {
+        avatarPreview.src = resolveAvatarSrc(
+          uploadedAvatarUrl,
+          payload && typeof payload.updatedAt === "string" ? payload.updatedAt : Date.now().toString(),
+        );
+      }
+
+      selectedAvatarFile = null;
+      return uploadedAvatarUrl;
     }
 
     function validatePasswordMatch() {
@@ -355,22 +405,41 @@
 
       Promise.resolve()
         .then(async function () {
+          const finalAvatarUrl = await uploadAvatarIfNeeded();
           const profileResponse = await fetch("/api/inner-data", {
             method: "POST",
             credentials: "include",
             headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                action: "update-profile",
-                username: usernameInput ? usernameInput.value : "",
-                displayName: usernameInput ? usernameInput.value : "",
-                bio: bioInput ? bioInput.value : "",
-                avatarUrl: avatarUrlInput ? avatarUrlInput.value : "",
-              }),
+            body: JSON.stringify({
+              action: "update-profile",
+              username: usernameInput ? usernameInput.value : "",
+              displayName: usernameInput ? usernameInput.value : "",
+              bio: bioInput ? bioInput.value : "",
+              avatarUrl: finalAvatarUrl || (avatarUrlInput ? avatarUrlInput.value : ""),
+            }),
           });
 
           if (!profileResponse.ok) {
             const payload = await profileResponse.json().catch(function () { return {}; });
             throw new Error(payload.error || "资料保存失败");
+          }
+
+          const profilePayload = await profileResponse.json().catch(function () { return {}; });
+          const persistedAvatarUrl =
+            profilePayload && typeof profilePayload.avatarUrl === "string"
+              ? profilePayload.avatarUrl
+              : finalAvatarUrl || (avatarUrlInput ? avatarUrlInput.value : "");
+          const persistedUpdatedAt =
+            profilePayload && typeof profilePayload.updatedAt === "string"
+              ? profilePayload.updatedAt
+              : Date.now().toString();
+
+          if (avatarUrlInput) {
+            avatarUrlInput.value = persistedAvatarUrl || "";
+          }
+
+          if (avatarPreview && persistedAvatarUrl) {
+            avatarPreview.src = resolveAvatarSrc(persistedAvatarUrl, persistedUpdatedAt);
           }
 
           if (isTryingToChangePassword) {

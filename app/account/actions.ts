@@ -15,7 +15,6 @@ export async function updateProfileAction(formData: FormData) {
 
   const username = getTrimmedValue(formData, "username");
   const displayName = getTrimmedValue(formData, "displayName") || username;
-  const teamName = getTrimmedValue(formData, "teamName");
   const bio = getTrimmedValue(formData, "bio");
   const avatarUrl = getTrimmedValue(formData, "avatarUrl");
 
@@ -28,16 +27,32 @@ export async function updateProfileAction(formData: FormData) {
     return encodedRedirect("error", "/", "Please sign in before updating your profile.");
   }
 
-  const { error } = await supabase.from("profiles").upsert({
+  const profilePayload: {
+    id: string;
+    email: string | null;
+    updated_at: string;
+    username?: string | null;
+    display_name?: string | null;
+    team_name?: string | null;
+    bio?: string | null;
+    avatar_url?: string | null;
+  } = {
     id: user.id,
     email: user.email ?? null,
-    username: username || null,
-    display_name: displayName || null,
-    team_name: teamName || null,
-    bio: bio || null,
-    avatar_url: avatarUrl || null,
     updated_at: new Date().toISOString(),
-  });
+  };
+
+  profilePayload.username = username || null;
+  profilePayload.display_name = displayName || null;
+  profilePayload.bio = bio || null;
+  profilePayload.avatar_url = avatarUrl || null;
+
+  if (formData.has("teamName")) {
+    const teamName = getTrimmedValue(formData, "teamName");
+    profilePayload.team_name = teamName || null;
+  }
+
+  const { error } = await supabase.from("profiles").upsert(profilePayload);
 
   if (error) {
     return encodedRedirect("error", "/dashboard/account", error.message);

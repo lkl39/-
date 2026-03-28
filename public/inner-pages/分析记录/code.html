@@ -260,7 +260,7 @@
 </div>
 <div class="space-y-2">
 <label class="block font-label text-[10px] uppercase tracking-widest text-white/40 px-1">分析状态</label>
-<select class="w-full bg-white/5 border-0 rounded-lg py-2.5 px-4 text-sm text-white focus:ring-1 focus:ring-primary appearance-none">
+<select id="analysesStatusFilter" class="w-full bg-white/5 border-0 rounded-lg py-2.5 px-4 text-sm text-white focus:ring-1 focus:ring-primary appearance-none">
 <option>全部状态</option>
 <option>已完成</option>
 <option>分析中</option>
@@ -269,7 +269,7 @@
 </div>
 <div class="space-y-2">
 <label class="block font-label text-[10px] uppercase tracking-widest text-white/40 px-1">风险等级</label>
-<select class="w-full bg-white/5 border-0 rounded-lg py-2.5 px-4 text-sm text-white focus:ring-1 focus:ring-primary appearance-none">
+<select id="analysesRiskFilter" class="w-full bg-white/5 border-0 rounded-lg py-2.5 px-4 text-sm text-white focus:ring-1 focus:ring-primary appearance-none">
 <option>全部风险</option>
 <option>高风险</option>
 <option>中风险</option>
@@ -299,7 +299,7 @@
 <th class="px-6 py-4 font-label text-[10px] uppercase tracking-widest text-white/40 border-b border-white/5 text-right">操作</th>
 </tr>
 </thead>
-<tbody class="divide-y divide-white/5">
+<tbody id="analysesTableBody" class="divide-y divide-white/5">
 <tr class="hover:bg-white/5 transition-colors group">
 <td class="px-6 py-5">
 <div class="flex items-center gap-3">
@@ -576,6 +576,188 @@
         } catch (error) {
             console.error("analyses data hydration failed:", error);
         }
+    })();
+</script>
+<script>
+    (function enhanceAnalysesFilters() {
+        const filterSection = document.querySelector("section.glass-panel.rounded-2xl.p-6.mb-8");
+        const tableSection = document.querySelector("section.glass-panel.rounded-2xl.overflow-hidden.obsidian-glow");
+        if (!filterSection || !tableSection) {
+            return;
+        }
+
+        const filterSelects = filterSection.querySelectorAll("select");
+        const filterInputs = filterSection.querySelectorAll("input");
+        const statusFilter = filterSelects[0];
+        const riskFilter = filterSelects[1];
+        const keywordInput = filterInputs[1];
+        const tableBody = tableSection.querySelector("tbody");
+        const paginationBar = tableSection.querySelector("div.flex.justify-between.items-center");
+        const paginationText = paginationBar ? paginationBar.querySelector("span") : null;
+        const paginationButtonsWrap = paginationBar ? paginationBar.querySelector("div.flex.gap-2") : null;
+
+        if (!statusFilter || !riskFilter || !keywordInput || !tableBody || !paginationText || !paginationButtonsWrap) {
+            return;
+        }
+
+        statusFilter.innerHTML = '<option>全部状态</option><option>已完成</option><option>分析中</option><option>已失败</option>';
+        riskFilter.innerHTML = '<option>全部风险</option><option>高风险</option><option>中风险</option><option>低风险</option>';
+
+        let allRows = [];
+        let filteredRows = [];
+        let currentPage = 1;
+        const pageSize = 8;
+        let keywordTimer = null;
+
+        function renderTableRows(rows) {
+            tableBody.innerHTML = rows.map(function (row) {
+                const statusLabel = row.statusLabel || "未知";
+                const statusToneClass = statusLabel === "已完成"
+                    ? "status-completed"
+                    : statusLabel === "分析中"
+                        ? "status-progress"
+                        : "status-failed";
+
+                const risk = row.riskLabel || "未知";
+                const riskClass = risk === "高风险"
+                    ? "risk-high"
+                    : risk === "中风险"
+                        ? "risk-medium"
+                        : "risk-low";
+
+                const canView = statusLabel === "已完成";
+
+                return '' +
+                    '<tr class="hover:bg-white/5 transition-colors group">' +
+                    '<td class="px-6 py-5"><div class="flex items-center gap-3"><span class="material-symbols-outlined text-primary/60">description</span><span class="text-white font-medium text-sm">' + (row.fileName || "未命名日志") + '</span></div></td>' +
+                    '<td class="px-6 py-5 text-white/60 text-sm">' + (row.createdAt ? new Date(row.createdAt).toLocaleString("zh-CN") : "-") + '</td>' +
+                    '<td class="px-6 py-5"><div class="flex items-center gap-2 ' + statusToneClass + ' text-xs font-semibold"><span class="w-1.5 h-1.5 rounded-full bg-current shadow-[0_0_8px_currentColor]"></span>' + statusLabel + '</div></td>' +
+                    '<td class="px-6 py-5 text-center"><span class="text-white text-sm font-label">' + Number(row.issueCount || 0) + '</span></td>' +
+                    '<td class="px-6 py-5"><span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ' + riskClass + '">' + risk + '</span></td>' +
+                    '<td class="px-6 py-5 text-right">' +
+                    (canView
+                        ? '<a class="text-primary text-xs font-bold hover:underline transition-all" href="/dashboard/analyses?logId=' + encodeURIComponent(String(row.id || "")) + '" target="_top">查看详情</a>'
+                        : '<button class="text-white/20 text-xs font-bold cursor-not-allowed">查看详情</button>') +
+                    '</td>' +
+                    '</tr>';
+            }).join("");
+
+            if (!rows.length) {
+                tableBody.innerHTML = '<tr><td colspan="6" class="px-6 py-12 text-center text-sm text-white/40">当前筛选条件下没有匹配的分析记录</td></tr>';
+            }
+        }
+
+        function renderPagination() {
+            const total = filteredRows.length;
+            const totalPages = Math.max(1, Math.ceil(total / pageSize));
+            currentPage = Math.min(Math.max(1, currentPage), totalPages);
+
+            const start = total === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+            const end = Math.min(currentPage * pageSize, total);
+            paginationText.textContent = "显示 " + start + " 到 " + end + " 条，共 " + total + " 条记录";
+
+            const pageRows = filteredRows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+            renderTableRows(pageRows);
+
+            paginationButtonsWrap.innerHTML = "";
+
+            const prevBtn = document.createElement("button");
+            prevBtn.className = "w-8 h-8 rounded border border-white/10 flex items-center justify-center hover:bg-white/10 transition-all";
+            prevBtn.innerHTML = '<span class="material-symbols-outlined text-sm">chevron_left</span>';
+            prevBtn.disabled = currentPage <= 1;
+            prevBtn.classList.toggle("opacity-40", prevBtn.disabled);
+            prevBtn.addEventListener("click", function () {
+                if (currentPage <= 1) return;
+                currentPage -= 1;
+                renderPagination();
+            });
+            paginationButtonsWrap.appendChild(prevBtn);
+
+            const maxButtons = Math.min(5, totalPages);
+            let pageStart = Math.max(1, currentPage - 2);
+            let pageEnd = Math.min(totalPages, pageStart + maxButtons - 1);
+            if (pageEnd - pageStart + 1 < maxButtons) {
+                pageStart = Math.max(1, pageEnd - maxButtons + 1);
+            }
+
+            for (let page = pageStart; page <= pageEnd; page += 1) {
+                const btn = document.createElement("button");
+                btn.className = page === currentPage
+                    ? "w-8 h-8 rounded bg-primary text-on-primary flex items-center justify-center font-bold"
+                    : "w-8 h-8 rounded border border-white/10 flex items-center justify-center hover:bg-white/10 transition-all";
+                btn.textContent = String(page);
+                btn.addEventListener("click", function () {
+                    currentPage = page;
+                    renderPagination();
+                });
+                paginationButtonsWrap.appendChild(btn);
+            }
+
+            const nextBtn = document.createElement("button");
+            nextBtn.className = "w-8 h-8 rounded border border-white/10 flex items-center justify-center hover:bg-white/10 transition-all";
+            nextBtn.innerHTML = '<span class="material-symbols-outlined text-sm">chevron_right</span>';
+            nextBtn.disabled = currentPage >= totalPages;
+            nextBtn.classList.toggle("opacity-40", nextBtn.disabled);
+            nextBtn.addEventListener("click", function () {
+                if (currentPage >= totalPages) return;
+                currentPage += 1;
+                renderPagination();
+            });
+            paginationButtonsWrap.appendChild(nextBtn);
+        }
+
+        function applyFilters() {
+            const statusValue = String(statusFilter.value || "").trim();
+            const riskValue = String(riskFilter.value || "").trim();
+            const keyword = String(keywordInput.value || "").trim().toLowerCase();
+
+            filteredRows = allRows.filter(function (row) {
+                const statusMatch = !statusValue || statusValue === "全部状态" || String(row.statusLabel || "") === statusValue;
+                const riskMatch = !riskValue || riskValue === "全部风险" || String(row.riskLabel || "") === riskValue;
+                const keywordMatch = keyword.length === 0 || String(row.fileName || "").toLowerCase().includes(keyword);
+                return statusMatch && riskMatch && keywordMatch;
+            });
+
+            currentPage = 1;
+            renderPagination();
+        }
+
+        statusFilter.addEventListener("change", applyFilters);
+        riskFilter.addEventListener("change", applyFilters);
+        keywordInput.addEventListener("input", function () {
+            if (keywordTimer) {
+                window.clearTimeout(keywordTimer);
+            }
+            keywordTimer = window.setTimeout(function () {
+                applyFilters();
+            }, 220);
+        });
+        keywordInput.addEventListener("keydown", function (event) {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                if (keywordTimer) {
+                    window.clearTimeout(keywordTimer);
+                    keywordTimer = null;
+                }
+                applyFilters();
+            }
+        });
+
+        fetch("/api/inner-data?view=analyses", { credentials: "include", cache: "no-store" })
+            .then(function (response) {
+                if (!response.ok) {
+                    throw new Error("analyses-fetch-failed");
+                }
+                return response.json();
+            })
+            .then(function (data) {
+                allRows = Array.isArray(data.rows) ? data.rows.slice() : [];
+                filteredRows = allRows.slice();
+                renderPagination();
+            })
+            .catch(function (error) {
+                console.error("analyses filter enhancement failed:", error);
+            });
     })();
 </script>
 </body></html>

@@ -299,7 +299,7 @@
 </div>
 <div class="flex gap-4">
 <span class="text-white/20 select-none">103</span>
-<code class="text-white/80 code-glow" id="detail-log-snippet">HikariPool-1 - Connection is not available, request timed out after 30005ms.</code>
+<pre class="text-white/80 code-glow whitespace-pre-wrap break-words flex-1 m-0 font-mono" id="detail-log-snippet">HikariPool-1 - Connection is not available, request timed out after 30005ms.</pre>
 </div>
 <div class="flex gap-4">
 <span class="text-white/20 select-none">104</span>
@@ -434,6 +434,15 @@
 </main>
 <script>
       let reviewTaskCards = Array.from(document.querySelectorAll(".review-task-card"));
+      let reviewQueueData = reviewTaskCards.map((card) => ({
+        incidentId: card.dataset.eventId || "N/A",
+        riskLabel: card.dataset.risk || "待确认",
+        title: card.dataset.title || "待处理问题",
+        confidence: card.dataset.confidence || "--",
+        snippet: card.dataset.snippet || "暂无日志片段",
+        cause: card.dataset.cause || "暂无分析结论",
+        suggestion: card.dataset.suggestion || "建议先执行人工复核后再生成处置方案。",
+      }));
       const reviewTaskList = document.getElementById("review-task-list");
       const detailRiskBadge = document.getElementById("detail-risk-badge");
       const detailEventId = document.getElementById("detail-event-id");
@@ -453,6 +462,7 @@
 
         currentTaskIndex = index;
         const currentTask = reviewTaskCards[index];
+        const currentTaskData = reviewQueueData[index] || {};
 
         reviewTaskCards.forEach((card, cardIndex) => {
           const isActive = cardIndex === index;
@@ -463,13 +473,13 @@
           card.classList.toggle("border-white/5", !isActive);
         });
 
-        const risk = currentTask.dataset.risk || "待确认";
-        const eventId = currentTask.dataset.eventId || "N/A";
-        const title = currentTask.dataset.title || "待处理问题";
-        const confidence = currentTask.dataset.confidence || "--";
-        const snippet = currentTask.dataset.snippet || "暂无日志片段";
-        const cause = currentTask.dataset.cause || "暂无分析结论";
-        const suggestion = currentTask.dataset.suggestion || "建议先执行人工复核后再生成处置方案。";
+        const risk = currentTaskData.riskLabel || currentTask.dataset.risk || "待确认";
+        const eventId = currentTaskData.incidentId || currentTask.dataset.eventId || "N/A";
+        const title = currentTaskData.title || currentTask.dataset.title || "待处理问题";
+        const confidence = currentTaskData.confidence || currentTask.dataset.confidence || "--";
+        const snippet = currentTaskData.snippet || currentTask.dataset.snippet || "暂无日志片段";
+        const cause = currentTaskData.cause || currentTask.dataset.cause || "暂无分析结论";
+        const suggestion = currentTaskData.suggestion || currentTask.dataset.suggestion || "建议先执行人工复核后再生成处置方案。";
 
         if (detailRiskBadge) detailRiskBadge.textContent = risk;
         if (detailEventId) detailEventId.textContent = "Event ID: " + eventId;
@@ -532,7 +542,7 @@
         card.dataset.risk = riskLabel;
         card.dataset.title = title;
         card.dataset.confidence = confidenceText;
-        card.dataset.snippet = (item.snippet || "").replace(/\s+/g, " ").slice(0, 160) || "暂无日志片段";
+        card.dataset.snippet = String(item.snippet || "").trim() || "暂无日志片段";
         card.dataset.cause = item.cause || "暂无分析结论";
         card.dataset.suggestion = item.suggestion || "建议先执行人工复核后再生成处置方案。";
 
@@ -561,8 +571,19 @@
           return;
         }
 
+        reviewQueueData = Array.isArray(queue)
+          ? queue.map((item) => ({
+              incidentId: item.incidentId || item.id || "N/A",
+              riskLabel: item.riskLabel || "待确认",
+              title: item.title || "待复核问题",
+              confidence: toConfidenceText(item.confidence),
+              snippet: String(item.snippet || "").trim() || "暂无日志片段",
+              cause: item.cause || "暂无分析结论",
+              suggestion: item.suggestion || "建议先执行人工复核后再生成处置方案。",
+            }))
+          : [];
         reviewTaskList.innerHTML = "";
-        queue.forEach((item, index) => {
+        reviewQueueData.forEach((item, index) => {
           reviewTaskList.appendChild(buildReviewCard(item, index === 0, index));
         });
 
@@ -593,7 +614,7 @@
 
       (async function hydrateReviewQueue() {
         try {
-          const response = await fetch("/api/inner-data?view=reviews", { credentials: "include" });
+          const response = await fetch("/api/inner-data?view=reviews", { credentials: "include", cache: "no-store" });
           if (!response.ok) {
             return;
           }

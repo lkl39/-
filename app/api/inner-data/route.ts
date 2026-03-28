@@ -1,6 +1,6 @@
 ﻿import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server-client";
-import { hasSupabaseEnv } from "@/lib/supabase/env";
+import { getSupabaseEnv, hasSupabaseEnv } from "@/lib/supabase/env";
 import { toIssueTypeDisplayName } from "@/lib/labels/issue-type";
 
 type JsonRecord = Record<string, unknown>;
@@ -707,6 +707,41 @@ export async function GET(request: Request) {
     const bestAccuracyMode = [...modeRows].sort((a, b) => b.accuracy - a.accuracy)[0];
     const bestSpeedMode = [...modeRows].sort((a, b) => b.tasks - a.tasks)[0];
     const highestLatencyMode = [...modeRows].sort((a, b) => b.latencyMs - a.latencyMs)[0];
+    const bestF1Mode = [...modeRows].sort((a, b) => b.f1 - a.f1)[0];
+
+    const emptyModeRow = {
+      mode: "hybrid" as const,
+      modeLabel: toModeLabel("hybrid"),
+      tasks: 0,
+      findings: 0,
+      accuracy: 0,
+      recall: 0,
+      f1: 0,
+      latencyMs: 0,
+    };
+    const ruleMode = modeRows.find((item) => item.mode === "rule_only") ?? { ...emptyModeRow, mode: "rule_only" as const, modeLabel: toModeLabel("rule_only") };
+    const modelMode = modeRows.find((item) => item.mode === "model_only") ?? { ...emptyModeRow, mode: "model_only" as const, modeLabel: toModeLabel("model_only") };
+    const hybridMode = modeRows.find((item) => item.mode === "hybrid") ?? emptyModeRow;
+
+    const hybridAccuracyGainVsRule = Number((hybridMode.accuracy - ruleMode.accuracy).toFixed(1));
+    const hybridRecallGainVsRule = Number((hybridMode.recall - ruleMode.recall).toFixed(1));
+    const hybridLatencySavingVsModel = Number((modelMode.latencyMs - hybridMode.latencyMs).toFixed(1));
+    const latencyBarPercent =
+      modelMode.latencyMs > 0
+        ? Math.max(
+            8,
+            Math.min(100, Math.round((Math.max(0, hybridLatencySavingVsModel) / modelMode.latencyMs) * 100)),
+          )
+        : 0;
+    const recommendationTitle =
+      bestF1Mode?.mode === "hybrid" ? "默认推荐：混合模式" : "默认推荐：混合模式（综合口径）";
+    const recommendationSummary =
+      `在最近 ${rangeDays} 天的真实运行窗口里，混合模式同时保持 ${hybridMode.accuracy.toFixed(1)}% 的判断质量、` +
+      `${hybridMode.recall.toFixed(1)}% 的问题覆盖率，并将平均延迟控制在 ${hybridMode.latencyMs.toFixed(1)}ms。`;
+    const latencyEvidence =
+      hybridLatencySavingVsModel >= 0
+        ? `相较 Model Only，混合模式平均延迟低 ${Math.abs(hybridLatencySavingVsModel).toFixed(1)}ms，更适合作为默认路径。`
+        : `当前窗口期混合模式平均延迟高 ${Math.abs(hybridLatencySavingVsModel).toFixed(1)}ms，但换来了更高覆盖率与更均衡的综合表现。`;
 
     return NextResponse.json({
       days: rangeDays,
@@ -723,6 +758,35 @@ export async function GET(request: Request) {
         speedEps: Number(currentSpeed.toFixed(1)),
         speedDelta: Number((currentSpeed - previousSpeed).toFixed(1)),
       },
+      focusMetrics: {
+        accuracy: {
+          label: "混合模式准确性",
+          value: Number(hybridMode.accuracy.toFixed(1)),
+          unit: "%",
+          barPercent: Math.max(0, Math.min(100, Math.round(hybridMode.accuracy))),
+          compareLabel: hybridAccuracyGainVsRule >= 0 ? "较 Rule Only 提升" : "较 Rule Only 下降",
+          compareText: `${Math.abs(hybridAccuracyGainVsRule).toFixed(1)} 个点`,
+          note: `Rule Only ${ruleMode.accuracy.toFixed(1)}% · Hybrid ${hybridMode.accuracy.toFixed(1)}%`,
+        },
+        recall: {
+          label: "混合模式覆盖率",
+          value: Number(hybridMode.recall.toFixed(1)),
+          unit: "%",
+          barPercent: Math.max(0, Math.min(100, Math.round(hybridMode.recall))),
+          compareLabel: hybridRecallGainVsRule >= 0 ? "较 Rule Only 提升" : "较 Rule Only 下降",
+          compareText: `${Math.abs(hybridRecallGainVsRule).toFixed(1)} 个点`,
+          note: `Rule Only ${ruleMode.recall.toFixed(1)}% · Hybrid ${hybridMode.recall.toFixed(1)}%`,
+        },
+        latency: {
+          label: "混合模式平均延迟",
+          value: Number(hybridMode.latencyMs.toFixed(1)),
+          unit: "ms",
+          barPercent: latencyBarPercent,
+          compareLabel: hybridLatencySavingVsModel >= 0 ? "较 Model Only 更低" : "较 Model Only 更高",
+          compareText: `${Math.abs(hybridLatencySavingVsModel).toFixed(1)}ms`,
+          note: `Model Only ${modelMode.latencyMs.toFixed(1)}ms · Hybrid ${hybridMode.latencyMs.toFixed(1)}ms`,
+        },
+      },
       chart,
       modes: modeRows.map((item) => ({
         modeKey: item.mode,
@@ -738,9 +802,19 @@ export async function GET(request: Request) {
               ? "high_load"
               : "baseline",
       })),
+      recommendation: {
+        title: recommendationTitle,
+        summary: recommendationSummary,
+        evidence: [
+          `相较 Rule Only，混合模式准确性变化 ${hybridAccuracyGainVsRule >= 0 ? "+" : "-"}${Math.abs(hybridAccuracyGainVsRule).toFixed(1)} 个点。`,
+          `相较 Rule Only，混合模式覆盖率变化 ${hybridRecallGainVsRule >= 0 ? "+" : "-"}${Math.abs(hybridRecallGainVsRule).toFixed(1)} 个点。`,
+          latencyEvidence,
+        ],
+        footnote: "数据来自当前窗口期真实日志与 analysis_results 聚合，页面本身不触发三模式重跑。",
+      },
       insights: [
-        `${bestAccuracyMode?.modeLabel ?? "Hybrid"} 在当前窗口期准确率表现最佳。`,
-        `${bestSpeedMode?.modeLabel ?? "Hybrid"} 的吞吐量更高，适合作为高并发首选。`,
+        `${bestAccuracyMode?.modeLabel ?? "Hybrid"} 在当前窗口期判断质量表现最佳。`,
+        `${hybridMode.modeLabel} 在覆盖率与成本之间更均衡，更适合作为默认方案。`,
         `${highestLatencyMode?.modeLabel ?? "Model Only"} 平均延迟更高，建议配合规则前置过滤。`,
       ],
       pendingReviewCount: pendingReviewsResult.count ?? 0,
@@ -751,7 +825,7 @@ export async function GET(request: Request) {
     const [logsResult, errorsResult, analysesResult, logsStatsResult, knowledgeCountResult] = await Promise.all([
       supabase
         .from("logs")
-        .select("id, file_name, file_size, status, uploaded_at")
+        .select("id, file_name, file_size, status, uploaded_at, storage_path")
         .eq("user_id", user.id)
         .order("uploaded_at", { ascending: false })
         .limit(100),
@@ -838,6 +912,7 @@ export async function GET(request: Request) {
         fileName: item.file_name,
         createdAt: asIsoDate(item.uploaded_at),
         sizeLabel: fileSizeLabel(item.file_size),
+        storagePath: item.storage_path ?? "",
         status: item.status,
         statusLabel: toLogStatusLabel(item.status),
         issueCount: issueCountByLog.get(item.id) ?? 0,
@@ -1047,25 +1122,54 @@ export async function GET(request: Request) {
   }
 
   if (view === "reviews" || view === "history-cases") {
-    const [reviewsResult, errorsResult, logsResult, analysesResult] = await Promise.all([
-      supabase
-        .from("review_cases")
-        .select("id, log_error_id, review_status, final_risk_level, final_error_type, updated_at")
-        .eq("user_id", user.id)
-        .order("updated_at", { ascending: false })
-        .limit(300),
-      supabase
-        .from("log_errors")
-        .select("id, log_id, error_type, raw_text")
-        .eq("user_id", user.id)
-        .limit(500),
-      supabase.from("logs").select("id, file_name").eq("user_id", user.id).limit(300),
-      supabase
-        .from("analysis_results")
-        .select("log_error_id, risk_level, confidence, cause, repair_suggestion")
-        .eq("user_id", user.id)
-        .limit(1000),
+    const { data: reviewRows } = await supabase
+      .from("review_cases")
+      .select("id, log_error_id, review_status, final_risk_level, final_error_type, updated_at")
+      .eq("user_id", user.id)
+      .order("updated_at", { ascending: false })
+      .limit(300);
+
+    const reviewErrorIds = Array.from(
+      new Set(
+        (reviewRows ?? [])
+          .map((item) => item.log_error_id)
+          .filter((value): value is string => typeof value === "string" && value.length > 0),
+      ),
+    );
+
+    const [errorsResult, analysesResult] = await Promise.all([
+      reviewErrorIds.length > 0
+        ? supabase
+            .from("log_errors")
+            .select("id, log_id, error_type, raw_text")
+            .eq("user_id", user.id)
+            .in("id", reviewErrorIds)
+        : Promise.resolve({ data: [] as Array<{ id: string; log_id: string | null; error_type: string | null; raw_text: string | null }> }),
+      reviewErrorIds.length > 0
+        ? supabase
+            .from("analysis_results")
+            .select("log_error_id, risk_level, confidence, cause, repair_suggestion")
+            .eq("user_id", user.id)
+            .in("log_error_id", reviewErrorIds)
+        : Promise.resolve({ data: [] as Array<{ log_error_id: string; risk_level: string | null; confidence: number | null; cause: string | null; repair_suggestion: string | null }> }),
     ]);
+
+    const relatedLogIds = Array.from(
+      new Set(
+        (errorsResult.data ?? [])
+          .map((item) => item.log_id)
+          .filter((value): value is string => typeof value === "string" && value.length > 0),
+      ),
+    );
+
+    const logsResult =
+      relatedLogIds.length > 0
+        ? await supabase
+            .from("logs")
+            .select("id, file_name")
+            .eq("user_id", user.id)
+            .in("id", relatedLogIds)
+        : { data: [] as Array<{ id: string; file_name: string | null }> };
 
     const errorById = new Map<string, JsonRecord>();
     for (const item of errorsResult.data ?? []) {
@@ -1092,7 +1196,7 @@ export async function GET(request: Request) {
       }
     }
 
-    const rows = (reviewsResult.data ?? []).map((item) => {
+    const rows = (reviewRows ?? []).map((item) => {
       const error = errorById.get(item.log_error_id);
       const analysis = analysisByErrorId.get(item.log_error_id);
       const logId = (error?.log_id as string | undefined) ?? "";
@@ -1505,6 +1609,7 @@ export async function POST(request: Request) {
     bio?: string;
     newPassword?: string;
     ruleId?: string;
+    logId?: string;
     enabled?: boolean;
     ruleName?: string;
     systemSettings?: unknown;
@@ -1728,6 +1833,78 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ ok: true });
+  }
+
+  if (body.action === "history-download") {
+    const logId = String(body.logId ?? "").trim();
+    if (!logId) {
+      return NextResponse.json({ error: "缺少日志 ID" }, { status: 400 });
+    }
+
+    const { data: logRow, error: logError } = await supabase
+      .from("logs")
+      .select("id, file_name, storage_path")
+      .eq("id", logId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (logError || !logRow) {
+      return NextResponse.json({ error: logError?.message ?? "日志不存在" }, { status: 404 });
+    }
+
+    const storagePath = String(logRow.storage_path ?? "").trim();
+    if (!storagePath) {
+      return NextResponse.json({ error: "该日志没有可下载的存储文件" }, { status: 400 });
+    }
+
+    const { logBucket } = getSupabaseEnv();
+    const { data, error } = await supabase.storage
+      .from(logBucket)
+      .createSignedUrl(storagePath, 60 * 5, { download: logRow.file_name ?? "log-file" });
+
+    if (error || !data?.signedUrl) {
+      return NextResponse.json({ error: error?.message ?? "下载链接生成失败" }, { status: 400 });
+    }
+
+    return NextResponse.json({
+      ok: true,
+      downloadUrl: data.signedUrl,
+      fileName: logRow.file_name ?? "log-file",
+    });
+  }
+
+  if (body.action === "history-delete") {
+    const logId = String(body.logId ?? "").trim();
+    if (!logId) {
+      return NextResponse.json({ error: "缺少日志 ID" }, { status: 400 });
+    }
+
+    const { data: logRow, error: logError } = await supabase
+      .from("logs")
+      .select("id, storage_path")
+      .eq("id", logId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (logError || !logRow) {
+      return NextResponse.json({ error: logError?.message ?? "日志不存在" }, { status: 404 });
+    }
+
+    const storagePath = String(logRow.storage_path ?? "").trim();
+    if (storagePath) {
+      const { logBucket } = getSupabaseEnv();
+      const { error: storageError } = await supabase.storage.from(logBucket).remove([storagePath]);
+      if (storageError) {
+        return NextResponse.json({ error: storageError.message }, { status: 400 });
+      }
+    }
+
+    const { error } = await supabase.from("logs").delete().eq("id", logId).eq("user_id", user.id);
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
+    return NextResponse.json({ ok: true, logId });
   }
 
   return NextResponse.json({ error: "不支持的 action 参数" }, { status: 400 });

@@ -235,7 +235,7 @@
 <section class="glass-panel rounded-2xl p-4 mb-8 flex flex-wrap items-center gap-4">
 <div class="flex flex-col gap-1.5 min-w-[140px]">
 <label class="text-[10px] font-label text-white/40 uppercase tracking-widest px-1">风险等级</label>
-<select class="bg-surface-container-highest border-none text-xs rounded-lg py-2 pl-3 pr-8 focus:ring-1 focus:ring-primary cursor-pointer appearance-none">
+<select id="incidentsRiskFilter" class="bg-surface-container-highest border-none text-xs rounded-lg py-2 pl-3 pr-8 focus:ring-1 focus:ring-primary cursor-pointer appearance-none">
 <option>全部等级</option>
 <option>高风险</option>
 <option>中风险</option>
@@ -244,7 +244,7 @@
 </div>
 <div class="flex flex-col gap-1.5 min-w-[140px]">
 <label class="text-[10px] font-label text-white/40 uppercase tracking-widest px-1">问题类型</label>
-<select class="bg-surface-container-highest border-none text-xs rounded-lg py-2 pl-3 pr-8 focus:ring-1 focus:ring-primary cursor-pointer appearance-none">
+<select id="incidentsTypeFilter" class="bg-surface-container-highest border-none text-xs rounded-lg py-2 pl-3 pr-8 focus:ring-1 focus:ring-primary cursor-pointer appearance-none">
 <option>所有类型</option>
 <option>连接超时</option>
 <option>内存溢出</option>
@@ -254,7 +254,7 @@
 </div>
 <div class="flex flex-col gap-1.5 min-w-[140px]">
 <label class="text-[10px] font-label text-white/40 uppercase tracking-widest px-1">待复核</label>
-<select class="bg-surface-container-highest border-none text-xs rounded-lg py-2 pl-3 pr-8 focus:ring-1 focus:ring-primary cursor-pointer appearance-none">
+<select id="incidentsReviewFilter" class="bg-surface-container-highest border-none text-xs rounded-lg py-2 pl-3 pr-8 focus:ring-1 focus:ring-primary cursor-pointer appearance-none">
 <option>不限</option>
 <option>是</option>
 <option>否</option>
@@ -262,7 +262,7 @@
 </div>
 <div class="flex flex-col gap-1.5 min-w-[140px]">
 <label class="text-[10px] font-label text-white/40 uppercase tracking-widest px-1">处理阶段</label>
-<select class="bg-surface-container-highest border-none text-xs rounded-lg py-2 pl-3 pr-8 focus:ring-1 focus:ring-primary cursor-pointer appearance-none">
+<select id="incidentsStageFilter" class="bg-surface-container-highest border-none text-xs rounded-lg py-2 pl-3 pr-8 focus:ring-1 focus:ring-primary cursor-pointer appearance-none">
 <option>全部阶段</option>
 <option>待处理</option>
 <option>处理中</option>
@@ -272,12 +272,12 @@
 <div class="flex flex-col gap-1.5 flex-1">
 <label class="text-[10px] font-label text-white/40 uppercase tracking-widest px-1">文件名搜索</label>
 <div class="relative">
-<input class="w-full bg-surface-container-highest border-none text-xs rounded-lg py-2 pl-3 pr-10 focus:ring-1 focus:ring-primary" placeholder="输入日志文件名..." type="text"/>
+<input id="incidentsKeywordInput" class="w-full bg-surface-container-highest border-none text-xs rounded-lg py-2 pl-3 pr-10 focus:ring-1 focus:ring-primary" placeholder="输入日志文件名..." type="text"/>
 <span class="material-symbols-outlined absolute right-3 top-2 text-sm text-white/40">find_in_page</span>
 </div>
 </div>
 <div class="pt-5">
-<button class="bg-white/10 hover:bg-white/20 transition-all p-2 rounded-lg text-white">
+<button id="incidentsApplyFiltersBtn" class="bg-white/10 hover:bg-white/20 transition-all p-2 rounded-lg text-white">
 <span class="material-symbols-outlined">filter_list</span>
 </button>
 </div>
@@ -297,7 +297,7 @@
 <th class="px-6 py-4 text-[10px] font-label text-white/40 uppercase tracking-widest text-right">操作</th>
 </tr>
 </thead>
-<tbody class="divide-y divide-white/5">
+<tbody id="incidentsTableBody" class="divide-y divide-white/5">
 <!-- Row 1 -->
 <tr class="hover:bg-white/5 transition-colors group">
 <td class="px-6 py-5">
@@ -419,13 +419,11 @@
 </div>
 <!-- Pagination -->
 <div class="px-6 py-4 bg-white/[0.02] flex justify-between items-center">
-<div class="text-[10px] font-label text-white/30">显示 1 到 4 共 28 个异常问题</div>
-<div class="flex gap-2">
-<button class="p-1 rounded bg-white/5 text-white/40 hover:text-white transition-all"><span class="material-symbols-outlined text-sm">chevron_left</span></button>
-<button class="p-1 rounded bg-primary/20 text-primary px-2 text-[10px] font-bold">1</button>
-<button class="p-1 rounded bg-white/5 text-white/40 px-2 text-[10px] font-bold hover:bg-white/10">2</button>
-<button class="p-1 rounded bg-white/5 text-white/40 px-2 text-[10px] font-bold hover:bg-white/10">3</button>
-<button class="p-1 rounded bg-white/5 text-white/40 hover:text-white transition-all"><span class="material-symbols-outlined text-sm">chevron_right</span></button>
+<div id="incidentsPaginationText" class="text-[10px] font-label text-white/30">显示 0 到 0 共 0 个异常问题</div>
+<div id="incidentsPaginationControls" class="flex gap-2">
+<button id="incidentsPrevPageBtn" class="p-1 rounded bg-white/5 text-white/40 hover:text-white transition-all"><span class="material-symbols-outlined text-sm">chevron_left</span></button>
+<span id="incidentsPageNumberGroup" class="flex gap-2"></span>
+<button id="incidentsNextPageBtn" class="p-1 rounded bg-white/5 text-white/40 hover:text-white transition-all"><span class="material-symbols-outlined text-sm">chevron_right</span></button>
 </div>
 </div>
 </section>
@@ -565,10 +563,37 @@
                 return;
             }
 
-            // 表格数据
-            const tableBody = document.querySelector("main table tbody");
-            if (tableBody) {
-                tableBody.innerHTML = data.rows.slice(0, 8).map(function (row, index) {
+            const tableBody = document.getElementById("incidentsTableBody");
+            const riskFilter = document.getElementById("incidentsRiskFilter");
+            const typeFilter = document.getElementById("incidentsTypeFilter");
+            const reviewFilter = document.getElementById("incidentsReviewFilter");
+            const stageFilter = document.getElementById("incidentsStageFilter");
+            const keywordInput = document.getElementById("incidentsKeywordInput");
+            const applyBtn = document.getElementById("incidentsApplyFiltersBtn");
+            const paginationText = document.getElementById("incidentsPaginationText");
+            const prevPageBtn = document.getElementById("incidentsPrevPageBtn");
+            const nextPageBtn = document.getElementById("incidentsNextPageBtn");
+            const pageNumberGroup = document.getElementById("incidentsPageNumberGroup");
+
+            if (!tableBody || !riskFilter || !typeFilter || !reviewFilter || !stageFilter || !keywordInput || !applyBtn || !paginationText || !prevPageBtn || !nextPageBtn || !pageNumberGroup) {
+                return;
+            }
+
+            const allRows = Array.isArray(data.rows) ? data.rows.slice() : [];
+            const pageSize = 8;
+            let filteredRows = allRows.slice();
+            let currentPage = 1;
+            let keywordTimer = null;
+
+            const dynamicTypes = Array.from(new Set(allRows.map(function (row) {
+                return String(row.type || "").trim();
+            }).filter(Boolean)));
+            typeFilter.innerHTML = '<option>所有类型</option>' + dynamicTypes.map(function (type) {
+                return '<option>' + type + '</option>';
+            }).join("");
+
+            function renderTableRows(rows) {
+                tableBody.innerHTML = rows.map(function (row, index) {
                     const risk = row.riskLabel || "中风险";
                     const riskClass = risk === "高风险"
                         ? "bg-[#FF8C00]/20 text-[#FF8C00] ring-1 ring-[#FF8C00]/50"
@@ -582,6 +607,9 @@
                         : stage === "已跳过"
                             ? "bg-white/10 text-white/40 ring-1 ring-white/20"
                             : "bg-[#FFD700]/10 text-[#FFD700] ring-1 ring-[#FFD700]/30";
+                    const actionHtml = stage === "已完成"
+                        ? '<button class="px-3 py-1 text-[10px] font-bold uppercase rounded bg-white/10 text-white/40 cursor-not-allowed">已处理</button>'
+                        : '<a class="px-3 py-1 text-[10px] font-bold uppercase rounded bg-primary/20 hover:bg-primary/40 text-primary transition-all" href="../人工复核/code.html">立即处理</a>';
 
                     return '' +
                         '<tr class="hover:bg-white/5 transition-colors group">' +
@@ -591,11 +619,119 @@
                         '<td class="px-6 py-5 text-center"><span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase ' + riskClass + '"><span class="w-1.5 h-1.5 rounded-full bg-current"></span>' + risk + '</span></td>' +
                         '<td class="px-6 py-5 text-center"><span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold ' + stageClass + '">' + stage + '</span></td>' +
                         '<td class="px-6 py-5 text-sm text-primary/80 italic">' + (row.suggestion || "建议进入人工复核确认。") + '</td>' +
-                        '<td class="px-6 py-5 text-right"><div class="flex justify-end gap-2"><a class="px-3 py-1 text-[10px] font-bold uppercase rounded bg-white/5 hover:bg-white/10 text-white transition-all" href="../人工复核/code.html">详情</a><a class="px-3 py-1 text-[10px] font-bold uppercase rounded bg-primary/20 hover:bg-primary/40 text-primary transition-all" href="../人工复核/code.html">立即处理</a></div></td>' +
+                        '<td class="px-6 py-5 text-right"><div class="flex justify-end gap-2"><a class="px-3 py-1 text-[10px] font-bold uppercase rounded bg-white/5 hover:bg-white/10 text-white transition-all" href="../人工复核/code.html">详情</a>' + actionHtml + '</div></td>' +
                         '</tr>';
                 }).join("");
+
+                if (!rows.length) {
+                    tableBody.innerHTML = '<tr><td colspan="7" class="px-6 py-12 text-center text-sm text-white/40">当前筛选条件下没有匹配的问题记录</td></tr>';
+                }
             }
 
+            function renderPagination() {
+                const total = filteredRows.length;
+                const totalPages = Math.max(1, Math.ceil(total / pageSize));
+                currentPage = Math.min(Math.max(1, currentPage), totalPages);
+
+                const start = total === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+                const end = Math.min(currentPage * pageSize, total);
+                paginationText.textContent = "显示 " + start + " 到 " + end + " 共 " + total + " 个异常问题";
+
+                const pageRows = filteredRows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+                renderTableRows(pageRows);
+
+                prevPageBtn.disabled = currentPage <= 1;
+                nextPageBtn.disabled = currentPage >= totalPages;
+                prevPageBtn.classList.toggle("opacity-40", prevPageBtn.disabled);
+                nextPageBtn.classList.toggle("opacity-40", nextPageBtn.disabled);
+
+                pageNumberGroup.innerHTML = "";
+                const maxButtons = Math.min(5, totalPages);
+                let pageStart = Math.max(1, currentPage - 2);
+                let pageEnd = Math.min(totalPages, pageStart + maxButtons - 1);
+                if (pageEnd - pageStart + 1 < maxButtons) {
+                    pageStart = Math.max(1, pageEnd - maxButtons + 1);
+                }
+
+                for (let page = pageStart; page <= pageEnd; page += 1) {
+                    const btn = document.createElement("button");
+                    btn.className = page === currentPage
+                        ? "p-1 rounded bg-primary/20 text-primary px-2 text-[10px] font-bold"
+                        : "p-1 rounded bg-white/5 text-white/40 px-2 text-[10px] font-bold hover:bg-white/10";
+                    btn.textContent = String(page);
+                    btn.addEventListener("click", function () {
+                        currentPage = page;
+                        renderPagination();
+                    });
+                    pageNumberGroup.appendChild(btn);
+                }
+            }
+
+            function applyFilters() {
+                const riskValue = String(riskFilter.value || "").trim();
+                const typeValue = String(typeFilter.value || "").trim();
+                const reviewValue = String(reviewFilter.value || "").trim();
+                const stageValue = String(stageFilter.value || "").trim();
+                const keyword = String(keywordInput.value || "").trim().toLowerCase();
+
+                filteredRows = allRows.filter(function (row) {
+                    const riskMatch = !riskValue || riskValue === "全部等级" || String(row.riskLabel || "") === riskValue;
+                    const typeMatch = !typeValue || typeValue === "所有类型" || String(row.type || "") === typeValue;
+                    const reviewMatch = reviewValue === "不限" || !reviewValue
+                        ? true
+                        : reviewValue === "是"
+                            ? String(row.stageLabel || "") === "待复核"
+                            : String(row.stageLabel || "") !== "待复核";
+                    const stageMatch = !stageValue || stageValue === "全部阶段"
+                        ? true
+                        : stageValue === "待处理"
+                            ? String(row.stageLabel || "") === "待复核"
+                            : String(row.stageLabel || "") === stageValue;
+                    const keywordMatch = keyword.length === 0 || String(row.sourceLog || "").toLowerCase().includes(keyword);
+                    return riskMatch && typeMatch && reviewMatch && stageMatch && keywordMatch;
+                });
+
+                currentPage = 1;
+                renderPagination();
+            }
+
+            prevPageBtn.addEventListener("click", function () {
+                if (currentPage <= 1) return;
+                currentPage -= 1;
+                renderPagination();
+            });
+
+            nextPageBtn.addEventListener("click", function () {
+                const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+                if (currentPage >= totalPages) return;
+                currentPage += 1;
+                renderPagination();
+            });
+
+            applyBtn.addEventListener("click", applyFilters);
+            [riskFilter, typeFilter, reviewFilter, stageFilter].forEach(function (node) {
+                node.addEventListener("change", applyFilters);
+            });
+            keywordInput.addEventListener("input", function () {
+                if (keywordTimer) {
+                    window.clearTimeout(keywordTimer);
+                }
+                keywordTimer = window.setTimeout(function () {
+                    applyFilters();
+                }, 220);
+            });
+            keywordInput.addEventListener("keydown", function (event) {
+                if (event.key === "Enter") {
+                    event.preventDefault();
+                    if (keywordTimer) {
+                        window.clearTimeout(keywordTimer);
+                        keywordTimer = null;
+                    }
+                    applyFilters();
+                }
+            });
+
+            renderPagination();
             // 系统处理建议趋势（文本）
             if (Array.isArray(data.suggestionTrend)) {
                 // 简单示例：统计近7天建议总数和最大值

@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8"/>
@@ -7,8 +7,6 @@
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&amp;family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@400;700&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<script src="/vendor/html2canvas.min.js"></script>
-<script src="/vendor/jspdf.umd.min.js"></script>
 <script id="tailwind-config">
         tailwind.config = {
             darkMode: "class",
@@ -277,12 +275,12 @@
 </div>
 <div class="glass-card p-6 rounded-2xl col-span-1">
 <p class="text-white/40 font-label text-xs uppercase tracking-widest mb-2" style="">主要异常类型</p>
-<h4 class="text-xl font-bold font-body text-white leading-tight" style="">数据库超时</h4>
+<h4 class="text-xl font-bold font-body text-white leading-tight" style="">Database Timeout</h4>
 <div class="mt-4 inline-flex items-center gap-2 px-2 py-1 rounded bg-white/5 text-[10px] font-label text-white/40 uppercase" style="">出现次数: 64</div>
 </div>
 <div class="glass-card p-6 rounded-2xl col-span-1 border border-primary/20">
 <p class="text-white/40 font-label text-xs uppercase tracking-widest mb-2" style="">建议优先处理项</p>
-<h4 class="text-xl font-bold font-body text-primary leading-tight" style="">连接池重配置</h4>
+<h4 class="text-xl font-bold font-body text-primary leading-tight" style="">Conn Pool Reconfig</h4>
 <div class="mt-4 flex items-center gap-2">
 <span class="material-symbols-outlined text-primary text-sm" style="">bolt</span>
 <span class="text-xs text-primary/70" style="">预期性能提升 40%</span>
@@ -439,13 +437,18 @@
 <span class="material-symbols-outlined text-white/40 cursor-pointer" style="">filter_list</span>
 </div>
 </div>
-<div class="space-y-4" style=""><span class="material-symbols-outlined text-sm" style="">info</span> 共匹配到 3 个历史相似案例</div>
+<div class="space-y-4" id="problemCountLine" style=""><span class="material-symbols-outlined text-sm" style="">info</span> 共匹配到 3 个问题样本</div>
+<div class="mt-4 space-y-4" id="problemDetailList">
+<div class="rounded-3xl border border-black/5 bg-white/70 p-6 text-sm text-[#6B5B47] shadow-[0_20px_60px_rgba(15,23,42,0.08)]">问题明细加载中...</div>
+</div>
 </section>
 </main>
 <!-- Background Decorative Gradients -->
 <div class="fixed top-[-10%] left-[-10%] w-[50%] h-[50%] bg-primary/5 rounded-full blur-[120px] pointer-events-none -z-10"></div>
 <div class="fixed bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-secondary/5 rounded-full blur-[120px] pointer-events-none -z-10"></div>
 
+<script src="/vendor/html2canvas.min.js"></script>
+<script src="/vendor/jspdf.umd.min.js"></script>
 <script>
     let latestReportPayload = null;
 
@@ -471,6 +474,22 @@
         };
     }
 
+    function sanitizeFileName(input) {
+        return String(input || "analysis-report")
+            .replace(/[\\/:*?"<>|]+/g, "-")
+            .replace(/\s+/g, "-")
+            .slice(0, 80);
+    }
+
+    function escapeHtml(input) {
+        return String(input ?? "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/\"/g, "&quot;")
+            .replace(/'/g, "&#39;");
+    }
+
     async function ensureLatestReportPayload() {
         if (latestReportPayload) {
             return latestReportPayload;
@@ -491,77 +510,6 @@
 
         latestReportPayload = data;
         return data;
-    }
-
-    function sanitizeFileName(input) {
-        return String(input || "analysis-report")
-            .replace(/[\\/:*?"<>|]+/g, "-")
-            .replace(/\s+/g, "-")
-            .slice(0, 80);
-    }
-
-    async function exportWordReport() {
-        if (!latestReportPayload) {
-            window.alert("暂无可导出的报告数据，请稍后重试。");
-            return;
-        }
-
-        const meta = getCurrentReportMeta();
-        const summary = latestReportPayload.summary || {};
-        const detailRows = Array.isArray(latestReportPayload.detailRows) ? latestReportPayload.detailRows : [];
-        const problemTypes = Array.isArray(latestReportPayload.problemTypes) ? latestReportPayload.problemTypes : [];
-
-        const typeRowsHtml = problemTypes.map(function (item) {
-            return "<tr>" +
-                "<td>" + String(item.name || "-") + "</td>" +
-                "<td>" + Number(item.count || 0).toLocaleString("zh-CN") + "</td>" +
-                "<td>" + Number(item.percent || 0) + "%</td>" +
-                "</tr>";
-        }).join("");
-
-        const detailRowsHtml = detailRows.map(function (item) {
-            return "<tr>" +
-                "<td>" + String(item.incidentId || "-") + "</td>" +
-                "<td>" + String(item.type || "-") + "</td>" +
-                "<td>" + String(item.riskLabel || "-") + "</td>" +
-                "<td>" + Math.round(Number(item.confidence || 0) * 100) + "%</td>" +
-                "<td>" + String(item.suggestion || "-") + "</td>" +
-                "</tr>";
-        }).join("");
-
-        const docHtml =
-            "<!doctype html><html><head><meta charset='utf-8'><title>分析报告</title>" +
-            "<style>body{font-family:Arial,\"Microsoft YaHei\",sans-serif;padding:24px;color:#222;}h1{margin:0 0 12px;}" +
-            "h2{margin:18px 0 8px;}table{width:100%;border-collapse:collapse;margin-top:8px;}" +
-            "th,td{border:1px solid #ddd;padding:8px;text-align:left;font-size:13px;}th{background:#f7f7f7;}" +
-            ".meta{margin:8px 0;color:#555;}ul{margin:6px 0 0 18px;}li{margin:4px 0;}</style></head><body>" +
-            "<h1>日志分析报告</h1>" +
-            "<div class='meta'>报告ID：" + meta.reportId + "</div>" +
-            "<div class='meta'>日志文件：" + meta.fileName + "</div>" +
-            "<div class='meta'>分析时间：" + (meta.createdAt === "-" ? "-" : new Date(meta.createdAt).toLocaleString("zh-CN")) + "</div>" +
-            "<div class='meta'>日志大小：" + meta.fileSizeLabel + "；状态：" + meta.statusLabel + "</div>" +
-            "<h2>摘要</h2>" +
-            "<ul>" +
-            "<li>问题总数：" + Number(summary.totalIssues || 0).toLocaleString("zh-CN") + "</li>" +
-            "<li>高风险问题：" + Number(summary.highRiskCount || 0).toLocaleString("zh-CN") + "</li>" +
-            "<li>主要异常类型：" + String(summary.topType || "-") + "</li>" +
-            "<li>建议复核：" + (summary.needsReview ? "是" : "否") + "</li>" +
-            "</ul>" +
-            "<h2>问题类型分布</h2>" +
-            "<table><thead><tr><th>类型</th><th>数量</th><th>占比</th></tr></thead><tbody>" + typeRowsHtml + "</tbody></table>" +
-            "<h2>问题明细</h2>" +
-            "<table><thead><tr><th>事件ID</th><th>类型</th><th>风险</th><th>置信度</th><th>建议</th></tr></thead><tbody>" + detailRowsHtml + "</tbody></table>" +
-            "</body></html>";
-
-        const blob = new Blob([docHtml], { type: "application/msword" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = sanitizeFileName(meta.fileName) + "-分析报告.doc";
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        URL.revokeObjectURL(url);
     }
 
     function getPdfLibrary() {
@@ -631,22 +579,12 @@
               "</ul>" +
               "<h2 style='margin:0 0 12px;font-size:20px;color:#2f2a25;'>问题类型分布</h2>" +
               "<table style='width:100%;border-collapse:collapse;margin:0 0 24px;'>" +
-                "<thead><tr>" +
-                  "<th style='border:1px solid #ddd;padding:8px 10px;text-align:left;font-size:13px;background:#f5f5f5;'>类型</th>" +
-                  "<th style='border:1px solid #ddd;padding:8px 10px;text-align:left;font-size:13px;background:#f5f5f5;'>数量</th>" +
-                  "<th style='border:1px solid #ddd;padding:8px 10px;text-align:left;font-size:13px;background:#f5f5f5;'>占比</th>" +
-                "</tr></thead>" +
+                "<thead><tr><th style='border:1px solid #ddd;padding:8px 10px;text-align:left;font-size:13px;background:#f5f5f5;'>类型</th><th style='border:1px solid #ddd;padding:8px 10px;text-align:left;font-size:13px;background:#f5f5f5;'>数量</th><th style='border:1px solid #ddd;padding:8px 10px;text-align:left;font-size:13px;background:#f5f5f5;'>占比</th></tr></thead>" +
                 "<tbody>" + typeRowsHtml + "</tbody>" +
               "</table>" +
               "<h2 style='margin:0 0 12px;font-size:20px;color:#2f2a25;'>问题明细</h2>" +
               "<table style='width:100%;border-collapse:collapse;'>" +
-                "<thead><tr>" +
-                  "<th style='border:1px solid #ddd;padding:8px 10px;text-align:left;font-size:13px;background:#f5f5f5;'>事件 ID</th>" +
-                  "<th style='border:1px solid #ddd;padding:8px 10px;text-align:left;font-size:13px;background:#f5f5f5;'>类型</th>" +
-                  "<th style='border:1px solid #ddd;padding:8px 10px;text-align:left;font-size:13px;background:#f5f5f5;'>风险</th>" +
-                  "<th style='border:1px solid #ddd;padding:8px 10px;text-align:left;font-size:13px;background:#f5f5f5;'>置信度</th>" +
-                  "<th style='border:1px solid #ddd;padding:8px 10px;text-align:left;font-size:13px;background:#f5f5f5;'>建议</th>" +
-                "</tr></thead>" +
+                "<thead><tr><th style='border:1px solid #ddd;padding:8px 10px;text-align:left;font-size:13px;background:#f5f5f5;'>事件 ID</th><th style='border:1px solid #ddd;padding:8px 10px;text-align:left;font-size:13px;background:#f5f5f5;'>类型</th><th style='border:1px solid #ddd;padding:8px 10px;text-align:left;font-size:13px;background:#f5f5f5;'>风险</th><th style='border:1px solid #ddd;padding:8px 10px;text-align:left;font-size:13px;background:#f5f5f5;'>置信度</th><th style='border:1px solid #ddd;padding:8px 10px;text-align:left;font-size:13px;background:#f5f5f5;'>建议</th></tr></thead>" +
                 "<tbody>" + detailRowsHtml + "</tbody>" +
               "</table>" +
             "</div>";
@@ -665,6 +603,202 @@
         wrapper.innerHTML = markup;
         document.body.appendChild(wrapper);
         return wrapper;
+    }
+
+    function buildPdfDocumentHtml(meta, summary, problemTypes, detailRows) {
+        const summaryItems = [
+            "问题总数：" + Number(summary.totalIssues || 0).toLocaleString("zh-CN"),
+            "高风险问题：" + Number(summary.highRiskCount || 0).toLocaleString("zh-CN"),
+            "主要异常类型：" + escapeHtml(summary.topType || "-"),
+            "建议复核：" + (summary.needsReview ? "是" : "否"),
+        ].map(function (item) {
+            return '<li style="margin:0 0 8px 18px;">' + item + '</li>';
+        }).join("");
+
+        const typeRows = problemTypes.map(function (item) {
+            return '<tr>' +
+                '<td style="padding:10px 12px;border-bottom:1px solid #E7DCCB;">' + escapeHtml(item.name || "-") + '</td>' +
+                '<td style="padding:10px 12px;border-bottom:1px solid #E7DCCB;text-align:right;">' + Number(item.count || 0).toLocaleString("zh-CN") + '</td>' +
+                '<td style="padding:10px 12px;border-bottom:1px solid #E7DCCB;text-align:right;">' + Number(item.percent || 0) + '%</td>' +
+                '</tr>';
+        }).join("");
+
+        const detailBlocks = detailRows.map(function (item, index) {
+            const confidence = Math.round(Number(item.confidence || 0) * 100);
+            const snippet = escapeHtml(item.snippet || item.cause || "未提供原始日志片段。");
+            return '<section style="margin-top:20px;padding:18px 20px;border:1px solid #E7DCCB;border-radius:18px;background:#FFFDF8;">' +
+                '<div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;">' +
+                '<div>' +
+                '<h3 style="margin:0 0 8px;font-size:18px;color:#2F2926;">' + escapeHtml(item.type || "未知异常") + '</h3>' +
+                '<p style="margin:0;color:#6B5B47;font-size:12px;">事件ID：' + escapeHtml(item.incidentId || "-") + ' · 日志行号：' + Number(item.lineNumber || index + 1) + '</p>' +
+                '</div>' +
+                '<div style="text-align:right;">' +
+                '<div style="font-size:12px;color:#A17442;">' + escapeHtml(item.riskLabel || "未知风险") + '</div>' +
+                '<div style="margin-top:6px;font-size:12px;color:#6B5B47;">置信度 ' + confidence + '%</div>' +
+                '</div>' +
+                '</div>' +
+                '<div style="margin-top:14px;padding:14px;border-radius:14px;background:#FCF8F1;">' +
+                '<div style="font-size:12px;font-weight:700;color:#A17442;">异常原因</div>' +
+                '<div style="margin-top:8px;font-size:13px;line-height:1.8;color:#2F2926;">' + escapeHtml(item.cause || "暂无分析原因。") + '</div>' +
+                '</div>' +
+                '<div style="margin-top:12px;padding:14px;border-radius:14px;background:#FCF8F1;">' +
+                '<div style="font-size:12px;font-weight:700;color:#A17442;">处理建议</div>' +
+                '<div style="margin-top:8px;font-size:13px;line-height:1.8;color:#2F2926;">' + escapeHtml(item.suggestion || "建议进入人工复核确认处理步骤。") + '</div>' +
+                '</div>' +
+                '<div style="margin-top:12px;padding:14px;border-radius:14px;background:#241F1B;">' +
+                '<div style="font-size:12px;font-weight:700;color:#F3E7D3;">日志片段</div>' +
+                '<pre style="margin:8px 0 0;white-space:pre-wrap;word-break:break-word;font-size:12px;line-height:1.7;color:#F8F3EA;font-family:Consolas,monospace;">' + snippet + '</pre>' +
+                '</div>' +
+                '</section>';
+        }).join("");
+
+        return '<div style="width:1200px;padding:40px 44px;background:#F7F1E6;box-sizing:border-box;font-family:Arial,\\\"Microsoft YaHei\\\",sans-serif;color:#2F2926;">' +
+            '<header style="padding:24px 28px;border-radius:24px;background:#FFFDF8;border:1px solid #E7DCCB;">' +
+            '<div style="font-size:28px;font-weight:700;">日志分析报告</div>' +
+            '<div style="margin-top:12px;font-size:13px;line-height:1.9;color:#6B5B47;">' +
+            '报告ID：' + escapeHtml(meta.reportId || "ANA-UNKNOWN") + '<br>' +
+            '日志文件：' + escapeHtml(meta.fileName || "-") + '<br>' +
+            '分析时间：' + escapeHtml(meta.createdAt === "-" ? "-" : new Date(meta.createdAt).toLocaleString("zh-CN")) + '<br>' +
+            '日志大小：' + escapeHtml(meta.fileSizeLabel || "-") + ' · 状态：' + escapeHtml(meta.statusLabel || "-") +
+            '</div>' +
+            '</header>' +
+            '<section style="margin-top:20px;padding:22px 28px;border-radius:24px;background:#FFFDF8;border:1px solid #E7DCCB;">' +
+            '<h2 style="margin:0 0 14px;font-size:20px;">摘要</h2>' +
+            '<ul style="margin:0;padding:0 0 0 2px;font-size:14px;color:#2F2926;">' + summaryItems + '</ul>' +
+            '</section>' +
+            '<section style="margin-top:20px;padding:22px 28px;border-radius:24px;background:#FFFDF8;border:1px solid #E7DCCB;">' +
+            '<h2 style="margin:0 0 14px;font-size:20px;">问题类型分布</h2>' +
+            '<table style="width:100%;border-collapse:collapse;font-size:13px;background:#FFFCF6;">' +
+            '<thead><tr><th style="padding:10px 12px;text-align:left;background:#F2E7D6;border-bottom:1px solid #E7DCCB;">类型</th><th style="padding:10px 12px;text-align:right;background:#F2E7D6;border-bottom:1px solid #E7DCCB;">数量</th><th style="padding:10px 12px;text-align:right;background:#F2E7D6;border-bottom:1px solid #E7DCCB;">占比</th></tr></thead>' +
+            '<tbody>' + typeRows + '</tbody></table>' +
+            '</section>' +
+            '<section style="margin-top:20px;">' +
+            '<h2 style="margin:0 0 14px;font-size:20px;">问题明细</h2>' +
+            detailBlocks +
+            '</section>' +
+            '</div>';
+    }
+
+    function getRiskBadgeClass(riskLevel) {
+        if (riskLevel === "high") {
+            return "border border-red-500/20 bg-red-500/10 text-red-600";
+        }
+        if (riskLevel === "medium") {
+            return "border border-amber-500/20 bg-amber-500/10 text-amber-700";
+        }
+        return "border border-emerald-500/20 bg-emerald-500/10 text-emerald-700";
+    }
+
+    function renderProblemDetailList(detailRows) {
+        const detailList = document.getElementById("problemDetailList");
+        if (!detailList) {
+            return;
+        }
+
+        if (!Array.isArray(detailRows) || detailRows.length === 0) {
+            detailList.innerHTML = '<div class="rounded-3xl border border-black/5 bg-white/70 p-6 text-sm text-[#6B5B47] shadow-[0_20px_60px_rgba(15,23,42,0.08)]">当前报告没有可展示的问题明细。</div>';
+            return;
+        }
+
+        detailList.innerHTML = detailRows.map(function (item, index) {
+            const confidence = Math.round(Number(item.confidence || 0) * 100);
+            const lineNumber = Number(item.lineNumber || index + 1);
+            const riskBadgeClass = getRiskBadgeClass(item.riskLevel);
+            const snippetSource = item.snippet || item.cause || ("事件ID: " + (item.incidentId || "-") + "，未提供原始日志片段。");
+            const snippet = escapeHtml(snippetSource);
+
+            return '<article class="rounded-3xl border border-black/5 bg-white/78 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)]">' +
+                '<div class="flex flex-wrap items-start justify-between gap-4">' +
+                '<div class="space-y-3">' +
+                '<div class="flex flex-wrap items-center gap-3">' +
+                '<h4 class="text-lg font-headline font-bold text-[#2F2926]">' + escapeHtml(item.type || "未知异常") + '</h4>' +
+                '<span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ' + riskBadgeClass + '">' + escapeHtml(item.riskLabel || "未知风险") + '</span>' +
+                '<span class="inline-flex items-center rounded-full border border-black/10 bg-black/5 px-3 py-1 text-xs font-medium text-[#6B5B47]">置信度 ' + confidence + '%</span>' +
+                '</div>' +
+                '<p class="text-sm text-[#6B5B47]">事件ID：' + escapeHtml(item.incidentId || "-") + ' · 日志行号：' + lineNumber + '</p>' +
+                '</div>' +
+                '<div class="rounded-2xl border border-black/8 bg-[#F7F1E6] px-4 py-3 text-sm text-[#6B5B47]">样本 #' + (index + 1) + '</div>' +
+                '</div>' +
+                '<div class="mt-5 grid gap-4 lg:grid-cols-2">' +
+                '<div class="rounded-2xl bg-[#FCF8F1] p-4">' +
+                '<p class="text-xs font-bold uppercase tracking-[0.18em] text-[#A17442]">异常原因</p>' +
+                '<p class="mt-2 text-sm leading-7 text-[#2F2926]">' + escapeHtml(item.cause || "暂无分析原因。") + '</p>' +
+                '</div>' +
+                '<div class="rounded-2xl bg-[#FCF8F1] p-4">' +
+                '<p class="text-xs font-bold uppercase tracking-[0.18em] text-[#A17442]">处理建议</p>' +
+                '<p class="mt-2 text-sm leading-7 text-[#2F2926]">' + escapeHtml(item.suggestion || "建议进入人工复核确认处理步骤。") + '</p>' +
+                '</div>' +
+                '</div>' +
+                '<div class="mt-4 rounded-2xl bg-[#241F1B] px-4 py-3 shadow-inner shadow-black/20">' +
+                '<p class="text-xs font-bold uppercase tracking-[0.18em]" style="color:#F3E7D3 !important;">日志片段</p>' +
+                '<pre class="mt-2 overflow-x-auto whitespace-pre-wrap break-words text-xs leading-6" style="color:#F8F3EA !important;">' + snippet + '</pre>' +
+                '</div>' +
+                '</article>';
+        }).join("");
+    }
+
+    function exportWordReport() {
+        if (!latestReportPayload) {
+            window.alert("暂无可导出的报告数据，请稍后重试。");
+            return;
+        }
+
+        const meta = getCurrentReportMeta();
+        const summary = latestReportPayload.summary || {};
+        const detailRows = Array.isArray(latestReportPayload.detailRows) ? latestReportPayload.detailRows : [];
+        const problemTypes = Array.isArray(latestReportPayload.problemTypes) ? latestReportPayload.problemTypes : [];
+
+        const typeRowsHtml = problemTypes.map(function (item) {
+            return "<tr>" +
+                "<td>" + String(item.name || "-") + "</td>" +
+                "<td>" + Number(item.count || 0).toLocaleString("zh-CN") + "</td>" +
+                "<td>" + Number(item.percent || 0) + "%</td>" +
+                "</tr>";
+        }).join("");
+
+        const detailRowsHtml = detailRows.map(function (item) {
+            return "<tr>" +
+                "<td>" + String(item.incidentId || "-") + "</td>" +
+                "<td>" + String(item.type || "-") + "</td>" +
+                "<td>" + String(item.riskLabel || "-") + "</td>" +
+                "<td>" + Math.round(Number(item.confidence || 0) * 100) + "%</td>" +
+                "<td>" + String(item.suggestion || "-") + "</td>" +
+                "</tr>";
+        }).join("");
+
+        const docHtml =
+            "<!doctype html><html><head><meta charset='utf-8'><title>分析报告</title>" +
+            "<style>body{font-family:Arial,\"Microsoft YaHei\",sans-serif;padding:24px;color:#222;}h1{margin:0 0 12px;}" +
+            "h2{margin:18px 0 8px;}table{width:100%;border-collapse:collapse;margin-top:8px;}" +
+            "th,td{border:1px solid #ddd;padding:8px;text-align:left;font-size:13px;}th{background:#f7f7f7;}" +
+            ".meta{margin:8px 0;color:#555;}ul{margin:6px 0 0 18px;}li{margin:4px 0;}</style></head><body>" +
+            "<h1>日志分析报告</h1>" +
+            "<div class='meta'>报告ID：" + meta.reportId + "</div>" +
+            "<div class='meta'>日志文件：" + meta.fileName + "</div>" +
+            "<div class='meta'>分析时间：" + (meta.createdAt === "-" ? "-" : new Date(meta.createdAt).toLocaleString("zh-CN")) + "</div>" +
+            "<div class='meta'>日志大小：" + meta.fileSizeLabel + "；状态：" + meta.statusLabel + "</div>" +
+            "<h2>摘要</h2>" +
+            "<ul>" +
+            "<li>问题总数：" + Number(summary.totalIssues || 0).toLocaleString("zh-CN") + "</li>" +
+            "<li>高风险问题：" + Number(summary.highRiskCount || 0).toLocaleString("zh-CN") + "</li>" +
+            "<li>主要异常类型：" + String(summary.topType || "-") + "</li>" +
+            "<li>建议复核：" + (summary.needsReview ? "是" : "否") + "</li>" +
+            "</ul>" +
+            "<h2>问题类型分布</h2>" +
+            "<table><thead><tr><th>类型</th><th>数量</th><th>占比</th></tr></thead><tbody>" + typeRowsHtml + "</tbody></table>" +
+            "<h2>问题明细</h2>" +
+            "<table><thead><tr><th>事件ID</th><th>类型</th><th>风险</th><th>置信度</th><th>建议</th></tr></thead><tbody>" + detailRowsHtml + "</tbody></table>" +
+            "</body></html>";
+
+        const blob = new Blob([docHtml], { type: "application/msword" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = sanitizeFileName(meta.fileName) + "-分析报告.doc";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
     }
 
     async function exportPdfReport() {
@@ -753,6 +887,7 @@
             }
         }
     }
+
     function submitForReview() {
         const meta = getCurrentReportMeta();
         const query = new URLSearchParams({
@@ -985,11 +1120,13 @@
                 });
             }
 
-            const problemCountLine = document.querySelector("section:last-of-type .space-y-4");
+            const problemCountLine = document.getElementById("problemCountLine");
             if (problemCountLine) {
                 const count = Array.isArray(data.detailRows) ? data.detailRows.length : 0;
                 problemCountLine.innerHTML = '<span class="material-symbols-outlined text-sm">info</span> 共匹配到 ' + count + ' 个问题样本';
             }
+
+            renderProblemDetailList(Array.isArray(data.detailRows) ? data.detailRows : []);
         } catch (error) {
             console.error("analysis report hydration failed:", error);
         }

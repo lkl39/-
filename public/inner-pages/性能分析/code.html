@@ -215,8 +215,8 @@
 <!-- Header Section -->
 <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
 <div>
-<h1 class="text-4xl font-headline font-extrabold tracking-tight text-white mb-2">算法性能对比实验</h1>
-<p class="text-white/50 max-w-2xl font-body">该页面仅用于展示 Rule Only、Model Only、Hybrid 三种模式的表现差异，不作为规则发布或系统参数生效门槛。</p>
+<h1 class="text-4xl font-headline font-extrabold tracking-tight text-white mb-2">模式效果对比</h1>
+<p class="text-white/50 max-w-2xl font-body">基于当前窗口期真实运行数据，对比 Rule Only、Model Only、Hybrid 三种分析模式的效果与开销，说明为何混合模式更适合作为默认方案。</p>
 </div>
 <!-- Filters -->
 <div class="flex items-center gap-4">
@@ -227,7 +227,7 @@
 </div>
 <div class="bg-surface-container rounded-xl px-4 py-2 flex items-center gap-2 cursor-pointer hover:bg-surface-container-high transition-all border border-white/5">
 <span class="material-symbols-outlined text-primary text-lg">experiment</span>
-<span class="text-sm font-medium">Aether-V2 核心对比</span>
+<span class="text-sm font-medium">默认推荐：混合模式</span>
 <span class="material-symbols-outlined text-white/40">expand_more</span>
 </div>
 </div>
@@ -247,8 +247,23 @@
 
 <div class="mb-8 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-2 text-[10px] font-label uppercase tracking-widest text-primary">
 <span class="material-symbols-outlined text-xs" style="font-variation-settings: 'FILL' 1;">visibility</span>
-<span>展示数据不直接驱动发布</span>
+<span id="performanceDataSourceBadge">真实运行窗口聚合 · 不额外重跑</span>
 </div>
+
+<section class="mb-8 rounded-2xl border border-primary/20 bg-gradient-to-r from-primary/10 to-transparent p-6">
+<p class="text-[10px] font-label uppercase tracking-widest text-primary/80 mb-3">默认推荐方案</p>
+<div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
+<div class="max-w-3xl">
+<h2 class="text-2xl font-headline font-extrabold text-white mb-2" id="performanceRecommendationTitle">默认推荐：混合模式</h2>
+<p class="text-sm text-white/70 leading-relaxed" id="performanceRecommendationSummary">正在根据当前窗口期真实运行数据生成对比结论。</p>
+</div>
+<div class="w-full lg:max-w-md text-left lg:text-right">
+<p class="text-[11px] uppercase tracking-widest text-white/30 mb-2">说明</p>
+<p class="text-xs text-white/45 leading-relaxed" id="performanceRecommendationFootnote">页面读取当前窗口期聚合数据，不会在页面访问时触发三模式重新分析。</p>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-6" id="performanceRecommendationEvidence"></div>
+</section>
 
 <!-- Bento Grid Comparison Stats -->
 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -256,49 +271,49 @@
 <div class="bg-surface-container rounded-2xl p-6 border border-white/5 relative overflow-hidden group">
 <div class="absolute top-0 right-0 w-32 h-32 bg-primary/5 blur-3xl -mr-16 -mt-16 rounded-full group-hover:bg-primary/10 transition-colors"></div>
 <div class="flex justify-between items-start mb-4">
-<span class="font-label text-xs uppercase tracking-widest text-white/40">平均准确率</span>
+<span class="font-label text-xs uppercase tracking-widest text-white/40">混合模式准确性</span>
 <span class="material-symbols-outlined text-primary">verified</span>
 </div>
 <div class="flex items-end gap-2">
 <span class="text-4xl font-headline font-extrabold text-white" id="metricAccuracyValue">0.0%</span>
-<span class="text-primary text-xs font-bold mb-1.5" id="metricAccuracyDelta">+0.0%</span>
+<span class="text-primary text-xs font-bold mb-1.5" id="metricAccuracyDelta">较 Rule Only 提升 0.0 个点</span>
 </div>
 <div class="mt-4 h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
 <div class="h-full bg-gradient-to-r from-primary to-secondary w-[0%]" id="metricAccuracyBar"></div>
 </div>
-<p class="text-[10px] text-white/30 mt-3" id="metricAccuracyNote">由 Hybrid 模式驱动的最高记录</p>
+<p class="text-[10px] text-white/30 mt-3" id="metricAccuracyNote">等待当前窗口期对比数据</p>
 </div>
 <!-- Metric Card 2: Recall -->
 <div class="bg-surface-container rounded-2xl p-6 border border-white/5 relative overflow-hidden group">
 <div class="absolute top-0 right-0 w-32 h-32 bg-secondary/5 blur-3xl -mr-16 -mt-16 rounded-full group-hover:bg-secondary/10 transition-colors"></div>
 <div class="flex justify-between items-start mb-4">
-<span class="font-label text-xs uppercase tracking-widest text-white/40">异常召回率</span>
+<span class="font-label text-xs uppercase tracking-widest text-white/40">混合模式覆盖率</span>
 <span class="material-symbols-outlined text-secondary">track_changes</span>
 </div>
 <div class="flex items-end gap-2">
 <span class="text-4xl font-headline font-extrabold text-white" id="metricRecallValue">0.0%</span>
-<span class="text-secondary text-xs font-bold mb-1.5" id="metricRecallDelta">+0.0%</span>
+<span class="text-secondary text-xs font-bold mb-1.5" id="metricRecallDelta">较 Rule Only 提升 0.0 个点</span>
 </div>
 <div class="mt-4 h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
 <div class="h-full bg-gradient-to-r from-secondary to-tertiary w-[0%]" id="metricRecallBar"></div>
 </div>
-<p class="text-[10px] text-white/30 mt-3" id="metricRecallNote">相对于 Model Only 模式的性能提升</p>
+<p class="text-[10px] text-white/30 mt-3" id="metricRecallNote">等待当前窗口期对比数据</p>
 </div>
 <!-- Metric Card 3: Speed -->
 <div class="bg-surface-container rounded-2xl p-6 border border-white/5 relative overflow-hidden group">
 <div class="absolute top-0 right-0 w-32 h-32 bg-tertiary/5 blur-3xl -mr-16 -mt-16 rounded-full group-hover:bg-tertiary/10 transition-colors"></div>
 <div class="flex justify-between items-start mb-4">
-<span class="font-label text-xs uppercase tracking-widest text-white/40">处理速度 (EPS)</span>
+<span class="font-label text-xs uppercase tracking-widest text-white/40">混合模式平均延迟</span>
 <span class="material-symbols-outlined text-tertiary">speed</span>
 </div>
 <div class="flex items-end gap-2">
-<span class="text-4xl font-headline font-extrabold text-white" id="metricSpeedValue">0.0</span>
-<span class="text-tertiary text-xs font-bold mb-1.5" id="metricSpeedDelta">+0.0</span>
+<span class="text-4xl font-headline font-extrabold text-white" id="metricSpeedValue">0.0ms</span>
+<span class="text-tertiary text-xs font-bold mb-1.5" id="metricSpeedDelta">较 Model Only 更低 0.0ms</span>
 </div>
 <div class="mt-4 h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
 <div class="h-full bg-gradient-to-r from-tertiary to-primary w-[0%]" id="metricSpeedBar"></div>
 </div>
-<p class="text-[10px] text-white/30 mt-3" id="metricSpeedNote">规则前置过滤后的综合吞吐量</p>
+<p class="text-[10px] text-white/30 mt-3" id="metricSpeedNote">等待当前窗口期对比数据</p>
 </div>
 </div>
 <!-- Main Chart Section -->
@@ -306,7 +321,7 @@
 <!-- Large Chart: Comparison -->
 <div class="lg:col-span-3 bg-surface-container rounded-2xl p-8 border border-white/5 relative">
 <div class="flex items-center justify-between mb-10">
-<h3 class="text-xl font-headline font-bold">三模式综合性能对比</h3>
+<h3 class="text-xl font-headline font-bold">三模式效果对比</h3>
 <div class="flex gap-4">
 <div class="flex items-center gap-2">
 <span class="w-3 h-3 rounded-full bg-primary/20 border border-primary"></span>
@@ -331,7 +346,7 @@
 <div class="bg-gradient-to-b from-primary/10 to-transparent rounded-2xl p-6 border border-primary/20">
 <div class="flex items-center gap-2 mb-6">
 <span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">lightbulb</span>
-<h3 class="font-bold text-primary">智能洞察</h3>
+<h3 class="font-bold text-primary">推荐理由</h3>
 </div>
 <div class="space-y-6" id="performanceInsights">
 </div>
@@ -344,7 +359,7 @@
 <!-- Detailed Data Table -->
 <div class="bg-surface-container rounded-2xl border border-white/5 overflow-hidden">
 <div class="p-6 border-b border-white/5 flex items-center justify-between">
-<h3 class="text-lg font-headline font-bold text-white">实验详细指标</h3>
+<h3 class="text-lg font-headline font-bold text-white">模式明细</h3>
 <div class="flex items-center gap-2">
 <button class="p-2 text-white/40 hover:text-white transition-all"><span class="material-symbols-outlined">filter_list</span></button>
 <button class="p-2 text-white/40 hover:text-white transition-all" id="tableExportPdfBtn"><span class="material-symbols-outlined">file_download</span></button>
@@ -354,7 +369,7 @@
 <table class="w-full text-left">
 <thead>
 <tr class="bg-white/5 text-[10px] font-label uppercase tracking-widest text-white/40">
-<th class="px-6 py-4">实验模式</th>
+<th class="px-6 py-4">分析模式</th>
 <th class="px-6 py-4 text-right">准确率 (Accuracy)</th>
 <th class="px-6 py-4 text-right">召回率 (Recall)</th>
 <th class="px-6 py-4 text-right">F1 分数</th>
@@ -368,7 +383,7 @@
 </div>
 <div class="p-4 border-t border-white/5 flex justify-center">
 <button class="text-xs font-label uppercase tracking-widest text-white/30 hover:text-primary transition-all flex items-center gap-2" id="viewFullReportBtn">
-    查看完整实验报告 <span class="material-symbols-outlined text-xs">arrow_forward</span>
+    查看完整分析报告 <span class="material-symbols-outlined text-xs">arrow_forward</span>
 </button>
 </div>
 </div>
@@ -465,6 +480,11 @@
         const compareGrid = document.getElementById("performanceCompareGrid");
         const insightsRoot = document.getElementById("performanceInsights");
         const modesTbody = document.getElementById("performanceModesTbody");
+        const recommendationTitle = document.getElementById("performanceRecommendationTitle");
+        const recommendationSummary = document.getElementById("performanceRecommendationSummary");
+        const recommendationEvidence = document.getElementById("performanceRecommendationEvidence");
+        const recommendationFootnote = document.getElementById("performanceRecommendationFootnote");
+        const dataSourceBadge = document.getElementById("performanceDataSourceBadge");
         const accuracyValue = document.getElementById("metricAccuracyValue");
         const accuracyDelta = document.getElementById("metricAccuracyDelta");
         const accuracyBar = document.getElementById("metricAccuracyBar");
@@ -626,6 +646,39 @@
             });
         }
 
+        function renderRecommendation(recommendation) {
+            if (recommendationTitle) {
+                recommendationTitle.textContent = String((recommendation && recommendation.title) || "默认推荐：混合模式");
+            }
+            if (recommendationSummary) {
+                recommendationSummary.textContent = String((recommendation && recommendation.summary) || "当前页面基于窗口期真实运行数据，说明混合模式为何更适合作为默认方案。");
+            }
+            if (recommendationFootnote) {
+                recommendationFootnote.textContent = String((recommendation && recommendation.footnote) || "页面读取当前窗口期聚合结果，不会在页面访问时触发三模式重新分析。");
+            }
+            if (dataSourceBadge) {
+                dataSourceBadge.textContent = "真实运行窗口聚合 · 不额外重跑";
+            }
+            if (!recommendationEvidence) {
+                return;
+            }
+
+            const rows = recommendation && Array.isArray(recommendation.evidence) ? recommendation.evidence : [];
+            recommendationEvidence.innerHTML = "";
+            rows.forEach(function (text, index) {
+                const item = document.createElement("div");
+                item.className = "rounded-xl border border-white/10 bg-white/5 px-4 py-4";
+                item.innerHTML =
+                    '<p class="text-[10px] uppercase tracking-widest text-white/30 mb-2">证据 ' + String(index + 1) + '</p>' +
+                    '<p class="text-sm text-white/75 leading-relaxed"></p>';
+                const body = item.querySelector("p:last-child");
+                if (body) {
+                    body.textContent = String(text || "-");
+                }
+                recommendationEvidence.appendChild(item);
+            });
+        }
+
         function modeBadge(modeKey, status) {
             if (modeKey === "hybrid" || status === "recommended") {
                 return '<span class="px-2 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-bold border border-primary/20">推荐运行</span>';
@@ -690,11 +743,31 @@
             });
         }
 
-        function renderMetrics(metrics) {
-            if (!metrics) {
+        function renderMetrics(payload) {
+            if (!payload) {
                 return;
             }
 
+            const focus = payload.focusMetrics || null;
+            if (focus && focus.accuracy && focus.recall && focus.latency) {
+                if (accuracyValue) accuracyValue.textContent = Number(focus.accuracy.value || 0).toFixed(1) + String(focus.accuracy.unit || "%");
+                if (accuracyDelta) accuracyDelta.textContent = String(focus.accuracy.compareLabel || "") + " " + String(focus.accuracy.compareText || "");
+                if (accuracyBar) accuracyBar.style.width = Math.max(0, Math.min(100, Number(focus.accuracy.barPercent || 0))).toFixed(1) + "%";
+                if (accuracyNote) accuracyNote.textContent = String(focus.accuracy.note || "等待当前窗口期对比数据");
+
+                if (recallValue) recallValue.textContent = Number(focus.recall.value || 0).toFixed(1) + String(focus.recall.unit || "%");
+                if (recallDelta) recallDelta.textContent = String(focus.recall.compareLabel || "") + " " + String(focus.recall.compareText || "");
+                if (recallBar) recallBar.style.width = Math.max(0, Math.min(100, Number(focus.recall.barPercent || 0))).toFixed(1) + "%";
+                if (recallNote) recallNote.textContent = String(focus.recall.note || "等待当前窗口期对比数据");
+
+                if (speedValue) speedValue.textContent = Number(focus.latency.value || 0).toFixed(1) + String(focus.latency.unit || "ms");
+                if (speedDelta) speedDelta.textContent = String(focus.latency.compareLabel || "") + " " + String(focus.latency.compareText || "");
+                if (speedBar) speedBar.style.width = Math.max(0, Math.min(100, Number(focus.latency.barPercent || 0))).toFixed(1) + "%";
+                if (speedNote) speedNote.textContent = String(focus.latency.note || "等待当前窗口期对比数据");
+                return;
+            }
+
+            const metrics = payload.metrics || {};
             const acc = Number(metrics.accuracy || 0);
             const rec = Number(metrics.recall || 0);
             const speed = Number(metrics.speedEps || 0);
@@ -794,7 +867,8 @@
 
                 const payload = await response.json();
                 latestPayload = payload;
-                renderMetrics(payload.metrics || {});
+                renderRecommendation(payload.recommendation || null);
+                renderMetrics(payload);
                 renderChart(payload.chart || []);
                 renderInsights(payload.insights || []);
                 renderModes(payload.modes || []);

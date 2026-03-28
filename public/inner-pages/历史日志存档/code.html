@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 
 <html lang="zh-CN"><head>
 <meta charset="utf-8"/>
@@ -237,10 +237,6 @@
 </div>
 
 <section class="mt-6 mb-8 glass-panel rounded-2xl border border-white/10 p-4">
-<div class="flex items-center justify-between mb-3">
-<p class="text-[10px] font-label uppercase tracking-widest text-white/40">历史与知识自由切换</p>
-<span class="text-[10px] text-white/30">在三个页面之间快速跳转</span>
-</div>
 <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
 <a class="px-4 py-3 rounded-xl bg-gradient-to-r from-[#8A5A2B]/25 to-transparent text-[#8A5A2B] border border-[#8A5A2B]/30 text-sm font-bold text-center" href="../历史日志存档/code.html">历史日志存档（当前）</a>
 <a class="px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white/80 hover:text-white hover:border-white/20 transition-all text-sm font-medium text-center" href="../历史问题库/code.html">历史问题库</a>
@@ -313,9 +309,6 @@
 <button class="text-primary hover:text-white transition-all flex items-center gap-1 text-xs font-bold">
 <span class="material-symbols-outlined text-sm">visibility</span> 查看报告
                                     </button>
-<button class="text-white/40 hover:text-white transition-all">
-<span class="material-symbols-outlined text-sm">download</span>
-</button>
 <button class="text-white/40 hover:text-error transition-all">
 <span class="material-symbols-outlined text-sm">delete</span>
 </button>
@@ -347,9 +340,6 @@
 <span class="material-symbols-outlined text-sm">hourglass_empty</span> 处理中
                                     </span>
 <button class="text-white/40">
-<span class="material-symbols-outlined text-sm">download</span>
-</button>
-<button class="text-white/40">
 <span class="material-symbols-outlined text-sm">delete</span>
 </button>
 </div>
@@ -379,9 +369,6 @@
 <button class="text-primary hover:text-white transition-all flex items-center gap-1 text-xs font-bold">
 <span class="material-symbols-outlined text-sm">visibility</span> 查看报告
                                     </button>
-<button class="text-white/40 hover:text-white transition-all">
-<span class="material-symbols-outlined text-sm">download</span>
-</button>
 <button class="text-white/40 hover:text-error transition-all">
 <span class="material-symbols-outlined text-sm">delete</span>
 </button>
@@ -412,9 +399,6 @@
 <button class="text-primary hover:text-white transition-all flex items-center gap-1 text-xs font-bold">
 <span class="material-symbols-outlined text-sm">visibility</span> 查看报告
                                     </button>
-<button class="text-white/40 hover:text-white transition-all">
-<span class="material-symbols-outlined text-sm">download</span>
-</button>
 <button class="text-white/40 hover:text-error transition-all">
 <span class="material-symbols-outlined text-sm">delete</span>
 </button>
@@ -448,6 +432,13 @@
 <div class="md:col-span-2 obsidian-card p-6 rounded-3xl border border-white/5 flex gap-8">
 <div class="flex-1">
 <h4 class="text-lg font-bold text-white mb-4">分析趋势预览</h4>
+<div class="flex items-center justify-between gap-4 mb-3">
+<p class="text-xs text-white/45">柱条表示最近 8 天每天的分析任务数，最右侧为最新一天。</p>
+<div class="flex items-center gap-3 text-[10px] text-white/45">
+<span class="inline-flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm bg-primary/35 border border-primary/20"></span>日任务数</span>
+<span class="inline-flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm bg-primary border border-primary/40"></span>最新一天</span>
+</div>
+</div>
 <div class="h-32 flex items-end gap-1.5" id="historyTrendBars">
 </div>
 <div class="flex justify-between mt-3 px-1">
@@ -577,10 +568,11 @@
                 return;
             }
 
-            const allRows = Array.isArray(data.rows) ? data.rows.slice() : [];
+            let allRows = Array.isArray(data.rows) ? data.rows.slice() : [];
             const pageSize = 8;
             let filteredRows = allRows.slice();
             let currentPage = 1;
+            let isDeleting = false;
 
             function renderTableRows(rows) {
                 tableBody.innerHTML = rows.map(function (row) {
@@ -600,7 +592,7 @@
                         '<td class="px-6 py-5 text-center"><span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border" style="' + statusStyle + '">' + status + '</span></td>' +
                         '<td class="px-6 py-5"><span class="text-on-surface-variant text-xs font-label">' + (row.createdAt ? new Date(row.createdAt).toLocaleString("zh-CN") : "-") + '</span></td>' +
                         '<td class="px-6 py-5"><span class="text-on-surface-variant text-xs font-label">' + (row.sizeLabel || "-") + '</span></td>' +
-                        '<td class="px-6 py-5 text-right"><div class="flex items-center justify-end gap-4">' + rowActions + '<button class="text-white/40 hover:text-white transition-all"><span class="material-symbols-outlined text-sm">download</span></button><button class="text-white/40 hover:text-error transition-all"><span class="material-symbols-outlined text-sm">delete</span></button></div></td>' +
+                        '<td class="px-6 py-5 text-right"><div class="flex items-center justify-end gap-4">' + rowActions + '<button class="text-white/40 hover:text-error transition-all" data-history-delete="' + String(row.id || "") + '" title="删除此日志"><span class="material-symbols-outlined text-sm">delete</span></button></div></td>' +
                         '</tr>';
                 }).join("");
             }
@@ -688,6 +680,55 @@
                 renderPagination();
             }
 
+            async function deleteHistoryRow(logId) {
+                const normalizedId = String(logId || "").trim();
+                if (!normalizedId || isDeleting) {
+                    return;
+                }
+
+                const targetRow = allRows.find(function (row) {
+                    return String(row.id || "") === normalizedId;
+                });
+                const targetName = targetRow && targetRow.fileName ? String(targetRow.fileName) : "这条历史日志";
+                const confirmed = window.confirm('确认删除“' + targetName + '”吗？删除后无法恢复。');
+                if (!confirmed) {
+                    return;
+                }
+
+                isDeleting = true;
+
+                try {
+                    const response = await fetch("/api/inner-data", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        cache: "no-store",
+                        body: JSON.stringify({
+                            action: "history-delete",
+                            logId: normalizedId
+                        })
+                    });
+
+                    const result = await response.json().catch(function () {
+                        return {};
+                    });
+
+                    if (!response.ok || !result.ok) {
+                        throw new Error(result.error || "删除失败，请稍后重试");
+                    }
+
+                    allRows = allRows.filter(function (row) {
+                        return String(row.id || "") !== normalizedId;
+                    });
+                    applyFilters();
+                } catch (error) {
+                    window.alert(error && error.message ? error.message : "删除失败，请稍后重试");
+                } finally {
+                    isDeleting = false;
+                }
+            }
+
             prevPageBtn.addEventListener("click", function () {
                 if (currentPage <= 1) return;
                 currentPage -= 1;
@@ -699,6 +740,16 @@
                 if (currentPage >= totalPages) return;
                 currentPage += 1;
                 renderPagination();
+            });
+
+            tableBody.addEventListener("click", function (event) {
+                const target = event.target instanceof Element ? event.target.closest("[data-history-delete]") : null;
+                if (!target) {
+                    return;
+                }
+
+                event.preventDefault();
+                deleteHistoryRow(target.getAttribute("data-history-delete"));
             });
 
             applyFilterBtn.addEventListener("click", applyFilters);
@@ -727,8 +778,8 @@
                     const height = Math.max(12, Math.min(100, Number(item.heightPercent || 12)));
                     const isLast = index === trend.length - 1;
                     const cls = isLast
-                        ? "flex-1 bg-primary/60 rounded-t-sm transition-all shadow-[0_-10px_20px_rgba(168,115,58,0.2)]"
-                        : "flex-1 bg-white/5 hover:bg-primary/40 rounded-t-sm transition-all";
+                        ? "flex-1 bg-primary rounded-t-sm transition-all border border-primary/40 shadow-[0_-10px_20px_rgba(168,115,58,0.28)]"
+                        : "flex-1 bg-primary/35 hover:bg-primary/55 rounded-t-sm transition-all border border-primary/20";
                     return '<div class="' + cls + '" style="height:' + height + '%" title="' + (item.label || "-") + '：' + Number(item.count || 0) + ' 条"></div>';
                 }).join("");
 

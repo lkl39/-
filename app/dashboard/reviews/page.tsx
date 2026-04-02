@@ -1,4 +1,8 @@
-﻿import { StaticInnerPage } from "@/components/dashboard/static-inner-page";
-export default function DashboardReviewsPage() {
-  return <StaticInnerPage src="/inner-pages/人工复核/code.html" title="人工复核" />;
+﻿import { ReviewsPage } from "@/components/dashboard/pages/reviews/reviews-page";
+import { getReviewsPageData } from "@/lib/dashboard/reviews";
+
+export default async function DashboardReviewsPage() {
+  const data = await getReviewsPageData();
+
+  return <ReviewsPage data={data} />;
 }

@@ -1,4 +1,5 @@
-import { StaticInnerPage } from "@/components/dashboard/static-inner-page";
+﻿import { AnalysisReportPage } from "@/components/dashboard/pages/analysis-report/analysis-report-page";
+import { getAnalysisReportData } from "@/lib/dashboard/analysis-report";
 
 type DashboardAnalysesPageProps = {
   searchParams?: Promise<{
@@ -6,14 +7,10 @@ type DashboardAnalysesPageProps = {
   }>;
 };
 
-export default async function DashboardAnalysesPage({
-  searchParams,
-}: DashboardAnalysesPageProps) {
+export default async function DashboardAnalysesPage({ searchParams }: DashboardAnalysesPageProps) {
   const params = (await searchParams) ?? {};
   const logId = typeof params.logId === "string" ? params.logId.trim() : "";
-  const src = logId
-    ? `/inner-pages/\u5206\u6790\u62a5\u544a/code.html?logId=${encodeURIComponent(logId)}`
-    : "/inner-pages/\u5206\u6790\u62a5\u544a/code.html";
+  const data = await getAnalysisReportData(logId);
 
-  return <StaticInnerPage src={src} title={"\u5206\u6790\u62a5\u544a"} />;
+  return <AnalysisReportPage data={data} />;
 }

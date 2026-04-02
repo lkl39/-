@@ -1,5 +1,8 @@
-﻿import { StaticInnerPage } from "@/components/dashboard/static-inner-page";
+﻿import { TasksPage } from "@/components/dashboard/pages/tasks/tasks-page";
+import { getTasksPageData } from "@/lib/dashboard/tasks";
 
-export default function DashboardTasksPage() {
-  return <StaticInnerPage src="/inner-pages/历史日志存档/code.html" title="历史日志存档" />;
+export default async function DashboardTasksPage() {
+  const data = await getTasksPageData();
+
+  return <TasksPage data={data} />;
 }

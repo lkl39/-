@@ -1,5 +1,8 @@
-﻿import { StaticInnerPage } from "@/components/dashboard/static-inner-page";
+﻿import { AnalysesPage } from "@/components/dashboard/pages/analyses/analyses-page";
+import { getAnalysesPageData } from "@/lib/dashboard/analyses";
 
-export default function DashboardHighRiskPage() {
-  return <StaticInnerPage src="/inner-pages/分析记录/code.html" title="分析记录" />;
+export default async function DashboardHighRiskPage() {
+  const data = await getAnalysesPageData();
+
+  return <AnalysesPage data={data} />;
 }

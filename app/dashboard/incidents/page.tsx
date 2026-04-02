@@ -1,5 +1,8 @@
-﻿import { StaticInnerPage } from "@/components/dashboard/static-inner-page";
+﻿import { IncidentsPage } from "@/components/dashboard/pages/incidents/incidents-page";
+import { getIncidentsPageData } from "@/lib/dashboard/incidents";
 
-export default function DashboardIncidentsPage() {
-  return <StaticInnerPage src="/inner-pages/问题中心/code.html" title="问题中心" />;
+export default async function DashboardIncidentsPage() {
+  const data = await getIncidentsPageData();
+
+  return <IncidentsPage data={data} />;
 }

@@ -1608,6 +1608,10 @@ export async function POST(request: Request) {
     avatarUrl?: string;
     bio?: string;
     newPassword?: string;
+    reviewCaseId?: string;
+    finalErrorType?: string;
+    finalRiskLevel?: string;
+    reviewNote?: string;
     ruleId?: string;
     logId?: string;
     enabled?: boolean;
@@ -1681,6 +1685,51 @@ export async function POST(request: Request) {
     }
 
     const { error } = await supabase.auth.updateUser({ password });
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
+    return NextResponse.json({ ok: true });
+  }
+
+  if (body.action === "complete-review") {
+    const reviewCaseId = String(body.reviewCaseId ?? "").trim();
+    if (!reviewCaseId) {
+      return NextResponse.json({ error: "缺少 reviewCaseId。" }, { status: 400 });
+    }
+
+    const finalErrorType = String(body.finalErrorType ?? "").trim();
+    const finalRiskLevel = String(body.finalRiskLevel ?? "").trim().toLowerCase();
+    const reviewNote = typeof body.reviewNote === "string" ? body.reviewNote.trim() : "";
+    const updates: {
+      review_status: string;
+      updated_at: string;
+      final_error_type?: string;
+      final_risk_level?: "high" | "medium" | "low";
+      review_note?: string | null;
+    } = {
+      review_status: "completed",
+      updated_at: new Date().toISOString(),
+    };
+
+    if (finalErrorType) {
+      updates.final_error_type = finalErrorType;
+    }
+
+    if (finalRiskLevel === "high" || finalRiskLevel === "medium" || finalRiskLevel === "low") {
+      updates.final_risk_level = finalRiskLevel;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(body, "reviewNote")) {
+      updates.review_note = reviewNote || null;
+    }
+
+    const { error } = await supabase
+      .from("review_cases")
+      .update(updates)
+      .eq("id", reviewCaseId)
+      .eq("user_id", user.id);
+
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
@@ -1919,3 +1968,11 @@ function inferTemplateFormatFromFileName(fileName: string) {
   if (ext === "txt" || ext === "md") return "TEXT";
   return ext ? ext.toUpperCase() : "FILE";
 }
+
+
+
+
+
+
+
+

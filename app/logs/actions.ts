@@ -1,4 +1,4 @@
-"use server";
+﻿"use server";
 
 import { revalidatePath } from "next/cache";
 import { uploadAndAnalyzeLog } from "@/lib/logs/upload-service";
@@ -12,14 +12,14 @@ function getTrimmedValue(formData: FormData, key: string) {
 
 export async function createLogUploadAction(formData: FormData) {
   if (!hasSupabaseEnv()) {
-    return encodedRedirect("error", "/dashboard", "Supabase is not configured.");
+    return encodedRedirect("error", "/upload", "请先配置 Supabase 环境变量。");
   }
 
   const file = formData.get("logFile");
   const sourceType = getTrimmedValue(formData, "sourceType") || "custom";
 
   if (!(file instanceof File) || file.size === 0) {
-    return encodedRedirect("error", "/dashboard", "Please choose a log file first.");
+    return encodedRedirect("error", "/upload", "请先选择日志文件。");
   }
 
   const { logBucket } = getSupabaseEnv();
@@ -29,7 +29,7 @@ export async function createLogUploadAction(formData: FormData) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return encodedRedirect("error", "/", "Please sign in before uploading logs.");
+    return encodedRedirect("error", "/login", "请先登录后再上传日志。");
   }
 
   try {
@@ -44,13 +44,13 @@ export async function createLogUploadAction(formData: FormData) {
     return encodedRedirect(
       "success",
       `/dashboard/analyses?logId=${result.logId}`,
-      `Uploaded ${result.fileName} successfully. Mode: ${result.analysisMode}. Rule engine detected ${result.incidentsCount} candidate issues.`,
+      `已成功上传 ${result.fileName}，识别到 ${result.incidentsCount} 个候选问题。`,
     );
   } catch (error) {
     return encodedRedirect(
       "error",
-      "/dashboard",
-      error instanceof Error ? error.message : "Log upload failed.",
+      "/upload",
+      error instanceof Error ? error.message : "日志上传失败，请稍后重试。",
     );
   }
 }
@@ -65,7 +65,7 @@ export async function updateLogMetadataAction(formData: FormData) {
   const sourceType = getTrimmedValue(formData, "sourceType") || "custom";
 
   if (!logId || !fileName) {
-    return encodedRedirect("error", "/dashboard/tasks", "\u8bf7\u586b\u5199\u5b8c\u6574\u7684\u65e5\u5fd7\u4fe1\u606f\u3002");
+    return encodedRedirect("error", "/dashboard/tasks", "请填写完整的日志信息。");
   }
 
   const supabase = await createClient();
@@ -74,7 +74,7 @@ export async function updateLogMetadataAction(formData: FormData) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return encodedRedirect("error", "/", "\u8bf7\u5148\u767b\u5f55\u540e\u518d\u7ba1\u7406\u65e5\u5fd7\u3002");
+    return encodedRedirect("error", "/", "请先登录后再管理日志。");
   }
 
   const { error } = await supabase
@@ -94,7 +94,7 @@ export async function updateLogMetadataAction(formData: FormData) {
   revalidatePath("/dashboard/tasks");
   revalidatePath(`/dashboard/logs/${logId}`);
 
-  return encodedRedirect("success", "/dashboard/tasks", "\u65e5\u5fd7\u4fe1\u606f\u5df2\u66f4\u65b0\u3002");
+  return encodedRedirect("success", "/dashboard/tasks", "日志信息已更新。");
 }
 
 export async function deleteLogAction(formData: FormData) {
@@ -106,7 +106,7 @@ export async function deleteLogAction(formData: FormData) {
   const storagePath = getTrimmedValue(formData, "storagePath");
 
   if (!logId) {
-    return encodedRedirect("error", "/dashboard/tasks", "\u672a\u627e\u5230\u8981\u5220\u9664\u7684\u65e5\u5fd7\u3002");
+    return encodedRedirect("error", "/dashboard/tasks", "未找到要删除的日志。");
   }
 
   const { logBucket } = getSupabaseEnv();
@@ -116,7 +116,7 @@ export async function deleteLogAction(formData: FormData) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return encodedRedirect("error", "/", "\u8bf7\u5148\u767b\u5f55\u540e\u518d\u7ba1\u7406\u65e5\u5fd7\u3002");
+    return encodedRedirect("error", "/", "请先登录后再管理日志。");
   }
 
   if (storagePath) {
@@ -145,5 +145,5 @@ export async function deleteLogAction(formData: FormData) {
   revalidatePath("/dashboard/high-risk");
   revalidatePath("/dashboard/analyses");
 
-  return encodedRedirect("success", "/dashboard/tasks", "\u65e5\u5fd7\u5df2\u5220\u9664\u3002");
+  return encodedRedirect("success", "/dashboard/tasks", "日志已删除。");
 }

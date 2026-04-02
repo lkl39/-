@@ -1,5 +1,8 @@
-﻿import { StaticInnerPage } from "@/components/dashboard/static-inner-page";
+﻿import { getWorkbenchData } from "@/lib/dashboard/workbench";
+import { WorkbenchPage } from "@/components/dashboard/pages/workbench/workbench-page";
 
-export default function DashboardPage() {
-  return <StaticInnerPage src="/inner-pages/工作台/code.html" title="工作台" />;
+export default async function DashboardPage() {
+  const data = await getWorkbenchData();
+
+  return <WorkbenchPage data={data} />;
 }

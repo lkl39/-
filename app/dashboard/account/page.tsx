@@ -1,5 +1,8 @@
-﻿import { StaticInnerPage } from "@/components/dashboard/static-inner-page";
+﻿import { AccountPage } from "@/components/dashboard/pages/account/account-page";
+import { getAccountPageData } from "@/lib/dashboard/account";
 
-export default function DashboardAccountPage() {
-  return <StaticInnerPage src="/inner-pages/个人页面/code.html" title="个人页面" />;
+export default async function DashboardAccountPage() {
+  const data = await getAccountPageData();
+
+  return <AccountPage data={data} />;
 }

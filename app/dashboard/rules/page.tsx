@@ -1,5 +1,7 @@
-import { StaticInnerPage } from "@/components/dashboard/static-inner-page";
+﻿import { RulesPage } from "@/components/dashboard/pages/rules/rules-page";
+import { getRulesPageData } from "@/lib/dashboard/rules";
 
-export default function DashboardRulesPage() {
-  return <StaticInnerPage src="/inner-pages/规则配置管理/code.html" title="规则配置管理" />;
+export default async function DashboardRulesPage() {
+  const data = await getRulesPageData();
+  return <RulesPage data={data} />;
 }

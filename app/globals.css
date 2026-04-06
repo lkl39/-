@@ -1,9 +1,28 @@
-﻿@import "tailwindcss";
+@import "tailwindcss";
 
 /* 基础设置 */
 :root {
   --background: #09131f;
   --foreground: #f8fafc;
+  --font-manrope:
+    "Avenir Next",
+    "Segoe UI",
+    "PingFang SC",
+    "Microsoft YaHei",
+    sans-serif;
+  --font-inter:
+    "Inter",
+    "Segoe UI",
+    "PingFang SC",
+    "Microsoft YaHei",
+    sans-serif;
+  --font-space-grotesk:
+    "Bahnschrift",
+    "Avenir Next Condensed",
+    "Segoe UI",
+    "PingFang SC",
+    "Microsoft YaHei",
+    sans-serif;
 }
 
 @theme inline {

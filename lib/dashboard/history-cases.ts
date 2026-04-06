@@ -1,4 +1,4 @@
-﻿import { createClient } from "@/lib/supabase/server-client";
+import { createClient } from "@/lib/supabase/server-client";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { toIssueTypeDisplayName } from "@/lib/labels/issue-type";
 
@@ -145,7 +145,7 @@ export async function getHistoryCasesPageData(): Promise<HistoryCasesPageData> {
       .eq("review_status", "pending"),
     supabase
       .from("review_cases")
-      .select("id, log_error_id, final_cause, resolution, review_note, updated_at")
+      .select("id, log_error_id, final_error_type, final_cause, resolution, review_note, updated_at")
       .eq("user_id", user.id)
       .eq("review_status", "completed")
       .order("updated_at", { ascending: false })

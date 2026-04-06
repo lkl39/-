@@ -1,21 +1,5 @@
 import type { Metadata } from "next";
-import { Manrope, Inter, Space_Grotesk } from "next/font/google";
 import "./globals.css";
-
-const manrope = Manrope({ 
-  subsets: ['latin'],
-  variable: '--font-manrope',
-});
-
-const inter = Inter({ 
-  subsets: ['latin'],
-  variable: '--font-inter',
-});
-
-const spaceGrotesk = Space_Grotesk({ 
-  subsets: ['latin'],
-  variable: '--font-space-grotesk',
-});
 
 export const metadata: Metadata = {
   title: "智能日志分析与运维辅助决策系统",
@@ -28,10 +12,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="zh-CN"
-      className={`${manrope.variable} ${inter.variable} ${spaceGrotesk.variable}`}
-    >
+    <html lang="zh-CN">
       <head>
         <link
           rel="stylesheet"

@@ -20,6 +20,7 @@ export type AnalysisReportData = {
     id: string;
     fileName: string;
     fileSizeLabel: string;
+    status: string;
     statusLabel: string;
     createdAt: string;
   };
@@ -52,6 +53,7 @@ const EMPTY_REPORT_DATA: AnalysisReportData = {
     id: "",
     fileName: "未找到分析记录",
     fileSizeLabel: "-",
+    status: "unknown",
     statusLabel: "未知",
     createdAt: new Date(0).toISOString(),
   },
@@ -184,6 +186,7 @@ export async function getAnalysisReportData(logId?: string): Promise<AnalysisRep
   const errors = errorsResult.data ?? [];
   const analyses = analysesResult.data ?? [];
   const errorById = new Map(errors.map((item) => [item.id, item]));
+  const analysisByErrorId = new Map(analyses.map((item) => [item.log_error_id, item]));
 
   const typeCount = new Map<string, number>();
   for (const item of errors) {
@@ -210,19 +213,19 @@ export async function getAnalysisReportData(logId?: string): Promise<AnalysisRep
   const dominantRisk = analyses.map((item) => item.risk_level).sort((a, b) => toRiskWeight(b) - toRiskWeight(a))[0] ?? "low";
   const needsReview = dominantRisk === "high" || avgConfidence < 0.72;
 
-  const detailRows = analyses.slice(0, 8).map((analysis, index) => {
-    const error = errorById.get(analysis.log_error_id);
+  const detailRows = errors.map((error, index) => {
+    const analysis = analysisByErrorId.get(error.id);
     return {
-      id: analysis.id,
-      incidentId: analysis.log_error_id,
-      type: toIssueDisplayName(error?.error_type ?? "未知异常"),
-      riskLevel: toRiskValue(analysis.risk_level),
-      riskLabel: toRiskLabel(analysis.risk_level),
-      confidence: Number(analysis.confidence ?? 0),
-      cause: analysis.cause ?? "暂无",
-      suggestion: analysis.repair_suggestion ?? "暂无",
-      snippet: error?.raw_text ?? "",
-      lineNumber: error?.line_number ?? index + 1,
+      id: analysis?.id ?? `pending-${error.id}`,
+      incidentId: error.id,
+      type: toIssueDisplayName(error.error_type ?? "未知异常"),
+      riskLevel: toRiskValue(analysis?.risk_level),
+      riskLabel: toRiskLabel(analysis?.risk_level),
+      confidence: Number(analysis?.confidence ?? 0),
+      cause: analysis?.cause ?? "分析结果生成中或暂不可用",
+      suggestion: analysis?.repair_suggestion ?? "请稍后刷新页面，或进入人工复核。",
+      snippet: error.raw_text ?? "",
+      lineNumber: error.line_number ?? index + 1,
     } satisfies AnalysisReportDetailRow;
   });
 
@@ -231,6 +234,7 @@ export async function getAnalysisReportData(logId?: string): Promise<AnalysisRep
       id: logRecord.id,
       fileName: logRecord.file_name ?? "未命名日志",
       fileSizeLabel: fileSizeLabel(logRecord.file_size),
+      status: logRecord.status ?? "unknown",
       statusLabel: toLogStatusLabel(logRecord.status),
       createdAt: asIsoDate(logRecord.uploaded_at),
     },

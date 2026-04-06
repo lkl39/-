@@ -10,9 +10,44 @@ import {
 import { createClient } from "@/lib/supabase/server-client";
 import { encodedRedirect } from "@/lib/utils";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
+import type { NormalizedRuleImport } from "@/lib/imports/types";
 
 function getTrimmedValue(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
+}
+
+function isMissingRuleLibraryColumnError(message: string) {
+  return /column|schema cache|Could not find the '.*' column/i.test(message);
+}
+
+function buildRuleInsertRow(item: NormalizedRuleImport, userId: string, includeExtendedFields: boolean) {
+  const baseRow = {
+    name: item.name,
+    description: item.description,
+    pattern: item.pattern,
+    match_type: item.matchType,
+    flags: item.flags,
+    error_type: item.errorType,
+    risk_level: item.riskLevel,
+    source_types: item.sourceTypes,
+    enabled: item.enabled,
+    created_by: userId,
+  };
+
+  if (!includeExtendedFields) {
+    return baseRow;
+  }
+
+  return {
+    ...baseRow,
+    template_rule_id: item.templateRuleId,
+    rule_category: item.ruleCategory,
+    sub_tags: item.subTags,
+    source: item.source,
+    scenario: item.scenario,
+    example_log: item.exampleLog,
+    notes: item.notes,
+  };
 }
 
 export async function importDetectionRulesAction(formData: FormData) {
@@ -41,7 +76,7 @@ export async function importDetectionRulesAction(formData: FormData) {
 
   const { data: existingRows, error: existingError } = await supabase
     .from("detection_rules")
-    .select("name, pattern, error_type");
+    .select("name, pattern, error_type, match_type");
 
   if (existingError) {
     return encodedRedirect("error", returnPath, existingError.message);
@@ -50,14 +85,21 @@ export async function importDetectionRulesAction(formData: FormData) {
   const existingSet = new Set(
     (existingRows ?? []).map((row) =>
       buildRuleFingerprint({
+        templateRuleId: null,
         name: row.name,
         description: null,
+        ruleCategory: "detection",
         pattern: row.pattern,
-        matchType: "keyword",
+        matchType: row.match_type === "regex" ? "regex" : row.match_type === "threshold" ? "threshold" : row.match_type === "repeat" ? "repeat" : "keyword",
         flags: null,
         errorType: row.error_type,
         riskLevel: "medium",
         sourceTypes: [],
+        subTags: [],
+        source: null,
+        scenario: null,
+        exampleLog: null,
+        notes: null,
         enabled: true,
       }),
     ),
@@ -69,20 +111,16 @@ export async function importDetectionRulesAction(formData: FormData) {
     return encodedRedirect("success", returnPath, "规则库已存在相同内容，没有新增规则。");
   }
 
-  const { error } = await supabase.from("detection_rules").insert(
-    uniqueItems.map((item) => ({
-      name: item.name,
-      description: item.description,
-      pattern: item.pattern,
-      match_type: item.matchType,
-      flags: item.flags,
-      error_type: item.errorType,
-      risk_level: item.riskLevel,
-      source_types: item.sourceTypes,
-      enabled: item.enabled,
-      created_by: user.id,
-    })),
+  let { error } = await supabase.from("detection_rules").insert(
+    uniqueItems.map((item) => buildRuleInsertRow(item, user.id, true)),
   );
+
+  if (error && isMissingRuleLibraryColumnError(error.message)) {
+    const fallbackResult = await supabase.from("detection_rules").insert(
+      uniqueItems.map((item) => buildRuleInsertRow(item, user.id, false)),
+    );
+    error = fallbackResult.error;
+  }
 
   if (error) {
     return encodedRedirect("error", returnPath, error.message);

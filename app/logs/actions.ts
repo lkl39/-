@@ -32,20 +32,16 @@ export async function createLogUploadAction(formData: FormData) {
     return encodedRedirect("error", "/login", "请先登录后再上传日志。");
   }
 
+  let result: Awaited<ReturnType<typeof uploadAndAnalyzeLog>>;
+
   try {
-    const result = await uploadAndAnalyzeLog({
+    result = await uploadAndAnalyzeLog({
       supabase,
       user,
       file,
       sourceType,
       logBucket,
     });
-
-    return encodedRedirect(
-      "success",
-      `/dashboard/analyses?logId=${result.logId}`,
-      `已成功上传 ${result.fileName}，识别到 ${result.incidentsCount} 个候选问题。`,
-    );
   } catch (error) {
     return encodedRedirect(
       "error",
@@ -53,6 +49,12 @@ export async function createLogUploadAction(formData: FormData) {
       error instanceof Error ? error.message : "日志上传失败，请稍后重试。",
     );
   }
+
+  return encodedRedirect(
+    "success",
+    `/dashboard/analyses?logId=${result.logId}`,
+    `已成功上传 ${result.fileName}，识别到 ${result.incidentsCount} 个候选问题。`,
+  );
 }
 
 export async function updateLogMetadataAction(formData: FormData) {

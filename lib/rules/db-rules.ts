@@ -1,47 +1,78 @@
-import { createClient } from "@/lib/supabase/server-client";
+﻿import { createClient } from "@/lib/supabase/server-client";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
+import {
+  normalizeErrorType,
+  normalizeMatchType,
+  normalizeRiskLevel,
+  normalizeRuleCategory,
+} from "@/lib/rules/taxonomy";
 import type { DetectionRule } from "@/lib/rules/types";
 
 type DetectionRuleRow = {
   id: string;
+  template_rule_id?: string | null;
   name: string;
   description: string | null;
+  rule_category?: string | null;
   pattern: string;
   match_type: string;
   flags: string | null;
   error_type: string;
   risk_level: string;
   source_types: string[] | null;
+  sub_tags?: string[] | null;
+  source?: string | null;
+  scenario?: string | null;
+  example_log?: string | null;
+  notes?: string | null;
   enabled: boolean;
 };
 
-function isMatchType(value: string): value is DetectionRule["matchType"] {
-  return value === "keyword" || value === "regex";
-}
-
-function isRiskLevel(
-  value: string,
-): value is DetectionRule["riskLevel"] {
-  return value === "low" || value === "medium" || value === "high";
-}
-
-function mapRowToRule(row: DetectionRuleRow): DetectionRule | null {
-  if (!isMatchType(row.match_type) || !isRiskLevel(row.risk_level)) {
-    return null;
-  }
+function mapRowToRule(row: DetectionRuleRow): DetectionRule {
+  const normalizedErrorType = normalizeErrorType(row.error_type, row.sub_tags ?? []);
 
   return {
     id: row.id,
+    templateRuleId: row.template_rule_id ?? undefined,
     name: row.name,
     description: row.description ?? "",
+    ruleCategory: normalizeRuleCategory(row.rule_category),
     pattern: row.pattern,
-    matchType: row.match_type,
+    matchType: normalizeMatchType(row.match_type),
     flags: row.flags ?? undefined,
-    errorType: row.error_type,
-    riskLevel: row.risk_level,
+    errorType: normalizedErrorType.errorType,
+    riskLevel: normalizeRiskLevel(row.risk_level),
     sourceTypes: row.source_types ?? undefined,
+    subTags: normalizedErrorType.subTags,
+    source: row.source ?? undefined,
+    scenario: row.scenario ?? undefined,
+    exampleLog: row.example_log ?? undefined,
+    notes: row.notes ?? undefined,
     enabled: row.enabled,
   };
+}
+
+async function selectExtendedRules() {
+  const supabase = await createClient();
+  const result = await supabase
+    .from("detection_rules")
+    .select(
+      "id, template_rule_id, name, description, rule_category, pattern, match_type, flags, error_type, risk_level, source_types, sub_tags, source, scenario, example_log, notes, enabled",
+    )
+    .eq("enabled", true);
+
+  if (!result.error) {
+    return result;
+  }
+
+  const fallback = await supabase
+    .from("detection_rules")
+    .select(
+      "id, name, description, pattern, match_type, flags, error_type, risk_level, source_types, enabled",
+    )
+    .eq("enabled", true);
+
+  return fallback;
 }
 
 export async function getDynamicDetectionRules() {
@@ -49,20 +80,11 @@ export async function getDynamicDetectionRules() {
     return [] as DetectionRule[];
   }
 
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("detection_rules")
-    .select(
-      "id, name, description, pattern, match_type, flags, error_type, risk_level, source_types, enabled",
-    )
-    .eq("enabled", true);
+  const { data, error } = await selectExtendedRules();
 
-  // Keep uploads stable even before the extension tables are created.
   if (error || !data) {
     return [] as DetectionRule[];
   }
 
-  return data
-    .map((row) => mapRowToRule(row as DetectionRuleRow))
-    .filter((rule): rule is DetectionRule => rule !== null);
+  return data.map((row) => mapRowToRule(row as DetectionRuleRow));
 }

@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import type { AnalysisReportData } from "@/lib/dashboard/analysis-report";
 
@@ -10,8 +10,23 @@ type AnalysisReportPageProps = {
 
 export function AnalysisReportPage({ data }: AnalysisReportPageProps) {
   const router = useRouter();
+  const isProcessing = data.log.status === "processing";
   const confidencePercent = Math.round((data.summary.avgConfidence || 0) * 100);
   const totalRisk = Math.max(1, data.riskDistribution.high + data.riskDistribution.medium + data.riskDistribution.low);
+
+  useEffect(() => {
+    if (!isProcessing) {
+      return;
+    }
+
+    const timerId = window.setInterval(() => {
+      router.refresh();
+    }, 3000);
+
+    return () => {
+      window.clearInterval(timerId);
+    };
+  }, [isProcessing, router]);
 
   const riskItems = useMemo(
     () => [
@@ -67,6 +82,12 @@ export function AnalysisReportPage({ data }: AnalysisReportPageProps) {
 
   return (
     <div className="mx-auto w-full max-w-7xl">
+      {isProcessing ? (
+        <section className="mb-6 rounded-2xl border border-[#E8D3A1] bg-[#FFF5DE] px-4 py-3 text-sm text-[#8A6A24]">
+          当前日志仍在分析中，页面将每 3 秒自动刷新一次，完成后会自动显示最新报告内容。
+        </section>
+      ) : null}
+
       <header className="mb-10 flex flex-col gap-6 pt-2 xl:flex-row xl:items-start xl:justify-between">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-3 font-label text-sm uppercase tracking-widest text-[#8A8178]">

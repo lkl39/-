@@ -39,7 +39,11 @@ function matchesRule(line: string, rule: DetectionRule) {
     return line.toLowerCase().includes(rule.pattern.toLowerCase());
   }
 
-  return new RegExp(rule.pattern, rule.flags).test(line);
+  if (rule.matchType === "regex") {
+    return new RegExp(rule.pattern, rule.flags).test(line);
+  }
+
+  return false;
 }
 
 function isStackTraceNoiseLine(line: string) {

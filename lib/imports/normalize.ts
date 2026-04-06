@@ -2,6 +2,12 @@
   NormalizedKnowledgeImport,
   NormalizedRuleImport,
 } from "@/lib/imports/types";
+import {
+  normalizeErrorType,
+  normalizeMatchType,
+  normalizeRiskLevel,
+  normalizeRuleCategory,
+} from "@/lib/rules/taxonomy";
 
 type PlainObject = Record<string, unknown>;
 
@@ -18,12 +24,36 @@ function asNullableString(value: unknown) {
   return text ? text : null;
 }
 
-function asStringArray(value: unknown) {
+function normalizeTagValue(value: string) {
+  const raw = value.trim();
+  if (!raw) {
+    return "";
+  }
+
+  if (/[\u4e00-\u9fa5]/.test(raw)) {
+    return raw;
+  }
+
+  return raw
+    .toLowerCase()
+    .replace(/[\s/-]+/g, "_")
+    .replace(/__+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function asStringArray(value: unknown, preserveCase = false) {
+  const finalize = (items: string[]) =>
+    Array.from(
+      new Set(
+        items
+          .map((item) => item.trim())
+          .filter(Boolean)
+          .map((item) => (preserveCase ? item : normalizeTagValue(item))),
+      ),
+    );
+
   if (Array.isArray(value)) {
-    return value
-      .map((item) => asTrimmedString(item))
-      .filter(Boolean)
-      .map((item) => item.toLowerCase());
+    return finalize(value.map((item) => asTrimmedString(item)).filter(Boolean));
   }
 
   const text = asTrimmedString(value);
@@ -31,10 +61,18 @@ function asStringArray(value: unknown) {
     return [] as string[];
   }
 
-  return text
-    .split(",")
-    .map((item) => item.trim().toLowerCase())
-    .filter(Boolean);
+  if (text.startsWith("[") && text.endsWith("]")) {
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) {
+        return finalize(parsed.map((item) => asTrimmedString(item)).filter(Boolean));
+      }
+    } catch {
+      // Fallback to delimiter-based split below.
+    }
+  }
+
+  return finalize(text.split(/[,，;；|]/));
 }
 
 function getFirstValue<T extends string>(row: PlainObject, keys: T[]) {
@@ -76,36 +114,47 @@ export function parseRuleImportPayload(payload: string) {
     }
 
     const name = asTrimmedString(getFirstValue(row, ["name", "title", "rule_name"]));
-    const pattern = asTrimmedString(getFirstValue(row, ["pattern", "match", "expression"]));
-    const errorType = asTrimmedString(
+    const pattern = asTrimmedString(
+      getFirstValue(row, ["pattern", "match", "expression", "pattern_or_condition"]),
+    );
+    const errorTypeValue = asTrimmedString(
       getFirstValue(row, ["errorType", "error_type", "category"]),
     );
 
-    if (!name || !pattern || !errorType) {
+    if (!name || !pattern || !errorTypeValue) {
       throw new Error(`第 ${index + 1} 条规则缺少 name、pattern 或 errorType。`);
     }
 
-    const matchTypeValue = asTrimmedString(
-      getFirstValue(row, ["matchType", "match_type", "type"]),
-    ).toLowerCase();
-    const riskLevelValue = asTrimmedString(
-      getFirstValue(row, ["riskLevel", "risk_level", "severity"]),
-    ).toLowerCase();
+    const ruleCategory = normalizeRuleCategory(
+      asTrimmedString(getFirstValue(row, ["ruleCategory", "rule_category"])),
+    );
+    const matchType = normalizeMatchType(
+      asTrimmedString(getFirstValue(row, ["matchType", "match_type", "type"])),
+    );
+    const riskLevel = normalizeRiskLevel(
+      asTrimmedString(getFirstValue(row, ["riskLevel", "risk_level", "severity"])),
+    );
+    const subTags = asStringArray(getFirstValue(row, ["subTags", "sub_tags", "tags"]));
+    const normalizedErrorType = normalizeErrorType(errorTypeValue, subTags);
 
     items.push({
+      templateRuleId: asNullableString(getFirstValue(row, ["templateRuleId", "template_rule_id", "rule_id"])),
       name,
       description: asNullableString(getFirstValue(row, ["description", "desc"])),
+      ruleCategory,
       pattern,
-      matchType: matchTypeValue === "regex" ? "regex" : "keyword",
+      matchType,
       flags: asNullableString(getFirstValue(row, ["flags", "regexFlags", "regex_flags"])),
-      errorType: errorType.toLowerCase().replace(/\s+/g, "_"),
-      riskLevel:
-        riskLevelValue === "low" || riskLevelValue === "high"
-          ? riskLevelValue
-          : "medium",
+      errorType: normalizedErrorType.errorType,
+      riskLevel,
       sourceTypes: asStringArray(
         getFirstValue(row, ["sourceTypes", "source_types", "sources"]),
       ),
+      subTags: normalizedErrorType.subTags,
+      source: asNullableString(getFirstValue(row, ["source", "basis"])),
+      scenario: asNullableString(getFirstValue(row, ["scenario", "scene"])),
+      exampleLog: asNullableString(getFirstValue(row, ["exampleLog", "example_log"])),
+      notes: asNullableString(getFirstValue(row, ["notes", "remark"])),
       enabled: getFirstValue(row, ["enabled"]) === false ? false : true,
     });
   });
@@ -148,6 +197,8 @@ export function parseKnowledgeImportPayload(payload: string) {
 
 export function buildRuleFingerprint(item: NormalizedRuleImport) {
   return [
+    item.ruleCategory.trim().toLowerCase(),
+    item.matchType.trim().toLowerCase(),
     item.name.trim().toLowerCase(),
     item.pattern.trim().toLowerCase(),
     item.errorType.trim().toLowerCase(),

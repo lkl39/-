@@ -1,5 +1,6 @@
-"use server";
+﻿"use server";
 
+import { syncHistoricalMissedCase } from "@/lib/analysis/missed-case-library";
 import { encodedRedirect } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/server-client";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
@@ -89,6 +90,16 @@ export async function submitReviewCaseAction(formData: FormData) {
 
   if (error) {
     return encodedRedirect("error", returnPath, error.message);
+  }
+
+  if (!isSkip) {
+    await syncHistoricalMissedCase({
+      supabase,
+      logErrorId: logError.id,
+      errorType: logError.error_type,
+      rootCause: issueSpot,
+      solution: resolution,
+    });
   }
 
   return encodedRedirect(

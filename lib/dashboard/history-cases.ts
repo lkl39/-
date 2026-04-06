@@ -19,6 +19,32 @@ export type HistoryCaseRow = {
   logId: string;
 };
 
+export type HistoricalMissedOpsSummary = {
+  pendingReviews: number;
+  completedReviews: number;
+  backfillEligibleReviews: number;
+  historicalMissedTotal: number;
+  verifiedHistoricalMissedTotal: number;
+};
+
+export type HistoricalMissedBackfillRow = {
+  id: string;
+  title: string;
+  sourceLog: string;
+  updatedAt: string;
+  reason: string;
+};
+
+export type HistoricalMissedRecentRow = {
+  id: string;
+  title: string;
+  errorType: string;
+  sourceType: string;
+  updatedAt: string;
+  verified: boolean;
+  priority: number;
+};
+
 export type HistoryCasesPageData = {
   rows: HistoryCaseRow[];
   summary: {
@@ -28,6 +54,9 @@ export type HistoryCasesPageData = {
     highRisk: number;
     knowledgeTemplateCount: number;
   };
+  historicalMissedOps: HistoricalMissedOpsSummary;
+  recentHistoricalMissedCases: HistoricalMissedRecentRow[];
+  recentBackfillCases: HistoricalMissedBackfillRow[];
 };
 
 const EMPTY_DATA: HistoryCasesPageData = {
@@ -39,6 +68,15 @@ const EMPTY_DATA: HistoryCasesPageData = {
     highRisk: 0,
     knowledgeTemplateCount: 0,
   },
+  historicalMissedOps: {
+    pendingReviews: 0,
+    completedReviews: 0,
+    backfillEligibleReviews: 0,
+    historicalMissedTotal: 0,
+    verifiedHistoricalMissedTotal: 0,
+  },
+  recentHistoricalMissedCases: [],
+  recentBackfillCases: [],
 };
 
 function toIssueDisplayName(value: string | null | undefined) {
@@ -84,7 +122,15 @@ export async function getHistoryCasesPageData(): Promise<HistoryCasesPageData> {
     return EMPTY_DATA;
   }
 
-  const [reviewRowsResult, knowledgeCountResult] = await Promise.all([
+  const [
+    reviewRowsResult,
+    knowledgeCountResult,
+    pendingReviewCountResult,
+    completedReviewRowsResult,
+    historicalMissedRowsResult,
+    historicalMissedCountResult,
+    historicalMissedVerifiedCountResult,
+  ] = await Promise.all([
     supabase
       .from("review_cases")
       .select("id, log_error_id, review_status, final_risk_level, final_error_type, updated_at")
@@ -92,6 +138,33 @@ export async function getHistoryCasesPageData(): Promise<HistoryCasesPageData> {
       .order("updated_at", { ascending: false })
       .limit(300),
     supabase.from("knowledge_base").select("id", { count: "exact", head: true }).eq("user_id", user.id),
+    supabase
+      .from("review_cases")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("review_status", "pending"),
+    supabase
+      .from("review_cases")
+      .select("id, log_error_id, final_cause, resolution, review_note, updated_at")
+      .eq("user_id", user.id)
+      .eq("review_status", "completed")
+      .order("updated_at", { ascending: false })
+      .limit(200),
+    supabase
+      .from("historical_missed_cases")
+      .select("id, title, error_type, source_type, updated_at, verified, priority")
+      .is("archived_at", null)
+      .order("updated_at", { ascending: false })
+      .limit(8),
+    supabase
+      .from("historical_missed_cases")
+      .select("id", { count: "exact", head: true })
+      .is("archived_at", null),
+    supabase
+      .from("historical_missed_cases")
+      .select("id", { count: "exact", head: true })
+      .is("archived_at", null)
+      .eq("verified", true),
   ]);
 
   const reviewRows = (reviewRowsResult.data ?? []).filter((item) => item.review_status !== "pending");
@@ -142,6 +215,45 @@ export async function getHistoryCasesPageData(): Promise<HistoryCasesPageData> {
     }
   }
 
+  const completedReviewRows = completedReviewRowsResult.data ?? [];
+  const completedReviewErrorIds = Array.from(
+    new Set(
+      completedReviewRows
+        .map((item) => item.log_error_id)
+        .filter((value): value is string => typeof value === "string" && value.length > 0),
+    ),
+  );
+
+  const completedAnalysisRowsResult =
+    completedReviewErrorIds.length > 0
+      ? await supabase
+          .from("analysis_results")
+          .select("log_error_id, cause, repair_suggestion, created_at")
+          .eq("user_id", user.id)
+          .in("log_error_id", completedReviewErrorIds)
+          .order("created_at", { ascending: false })
+          .limit(500)
+      : { data: [] as Array<{ log_error_id: string; cause: string | null; repair_suggestion: string | null; created_at: string | null }> };
+
+  const latestCompletedAnalysisByErrorId = new Map<string, { cause: string | null; repair_suggestion: string | null; created_at: string | null }>();
+  for (const item of completedAnalysisRowsResult.data ?? []) {
+    if (!latestCompletedAnalysisByErrorId.has(item.log_error_id)) {
+      latestCompletedAnalysisByErrorId.set(item.log_error_id, item);
+    }
+  }
+
+  const backfillEligibleReviews = completedReviewRows.reduce((total, item) => {
+    const analysis = item.log_error_id ? latestCompletedAnalysisByErrorId.get(item.log_error_id) : null;
+    const eligible =
+      String(item.final_cause ?? "").trim().length > 0 ||
+      String(item.resolution ?? "").trim().length > 0 ||
+      String(item.review_note ?? "").trim().length > 0 ||
+      String(analysis?.cause ?? "").trim().length > 0 ||
+      String(analysis?.repair_suggestion ?? "").trim().length > 0;
+
+    return total + (eligible ? 1 : 0);
+  }, 0);
+
   const rows: HistoryCaseRow[] = reviewRows.map((item) => {
     const error = errorById.get(item.log_error_id);
     const analysis = analysisByErrorId.get(item.log_error_id);
@@ -167,6 +279,33 @@ export async function getHistoryCasesPageData(): Promise<HistoryCasesPageData> {
     };
   });
 
+  const recentBackfillCases = completedReviewRows
+    .map((item) => {
+      const analysis = item.log_error_id ? latestCompletedAnalysisByErrorId.get(item.log_error_id) : null;
+      const error = item.log_error_id ? errorById.get(item.log_error_id) : null;
+      const eligibleReasons = [
+        String(item.final_cause ?? "").trim(),
+        String(item.resolution ?? "").trim(),
+        String(item.review_note ?? "").trim(),
+        String(analysis?.cause ?? "").trim(),
+        String(analysis?.repair_suggestion ?? "").trim(),
+      ].filter(Boolean);
+
+      if (eligibleReasons.length === 0) {
+        return null;
+      }
+
+      return {
+        id: item.log_error_id,
+        title: toIssueDisplayName(item.final_error_type ?? error?.error_type ?? "未知问题"),
+        sourceLog: logById.get(error?.log_id ?? "") ?? "未知日志",
+        updatedAt: asIsoDate(item.updated_at),
+        reason: eligibleReasons[0] ?? "可回补",
+      } satisfies HistoricalMissedBackfillRow;
+    })
+    .filter((item): item is HistoricalMissedBackfillRow => Boolean(item))
+    .slice(0, 3);
+
   return {
     rows,
     summary: {
@@ -176,5 +315,22 @@ export async function getHistoryCasesPageData(): Promise<HistoryCasesPageData> {
       highRisk: rows.filter((item) => item.riskLabel === "高风险").length,
       knowledgeTemplateCount: knowledgeCountResult.count ?? 0,
     },
+    historicalMissedOps: {
+      pendingReviews: pendingReviewCountResult.count ?? 0,
+      completedReviews: completedReviewRows.length,
+      backfillEligibleReviews,
+      historicalMissedTotal: historicalMissedCountResult.count ?? 0,
+      verifiedHistoricalMissedTotal: historicalMissedVerifiedCountResult.count ?? 0,
+    },
+    recentHistoricalMissedCases: (historicalMissedRowsResult.data ?? []).map((item) => ({
+      id: String(item.id),
+      title: String(item.title ?? "未命名漏报案例").trim(),
+      errorType: String(item.error_type ?? "unknown_error").trim(),
+      sourceType: String(item.source_type ?? "custom").trim(),
+      updatedAt: asIsoDate(item.updated_at),
+      verified: item.verified === true,
+      priority: Number(item.priority ?? 120),
+    })),
+    recentBackfillCases,
   };
 }

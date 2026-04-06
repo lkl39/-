@@ -7,11 +7,11 @@ type WorkbenchTrendProps = {
   trend: WorkbenchTrendPoint[];
 };
 
-function buildPath(values: number[], closeArea: boolean) {
+function buildPath(values: number[], closeArea: boolean, scaleMaxValue: number) {
   const width = 800;
   const minY = 30;
   const maxY = 180;
-  const maxValue = Math.max(...values, 1);
+  const maxValue = Math.max(scaleMaxValue, 1);
   const stepX = values.length > 1 ? width / (values.length - 1) : width;
   const line = values
     .map((value, index) => {
@@ -29,15 +29,16 @@ export function WorkbenchTrend({ trend }: WorkbenchTrendProps) {
   const safeTrend = trend.length > 0 ? trend : Array.from({ length: 7 }).map((_, index) => ({ day: `${index + 1}`, total: 0, high: 0 }));
   const totalValues = safeTrend.map((item) => item.total);
   const highValues = safeTrend.map((item) => item.high);
+  const sharedMaxValue = Math.max(...totalValues, ...highValues, 1);
 
   const chartPaths = useMemo(
     () => ({
-      totalArea: buildPath(totalValues, true),
-      totalLine: buildPath(totalValues, false),
-      highArea: buildPath(highValues, true),
-      highLine: buildPath(highValues, false),
+      totalArea: buildPath(totalValues, true, sharedMaxValue),
+      totalLine: buildPath(totalValues, false, sharedMaxValue),
+      highArea: buildPath(highValues, true, sharedMaxValue),
+      highLine: buildPath(highValues, false, sharedMaxValue),
     }),
-    [highValues, totalValues],
+    [highValues, sharedMaxValue, totalValues],
   );
 
   const guideLeft = hoveredIndex === null ? 0 : `${(hoveredIndex / Math.max(1, safeTrend.length - 1)) * 100}%`;

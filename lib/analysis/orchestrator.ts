@@ -18,6 +18,7 @@ const DUAL_CHECK_MAX_GROUPS = 3;
 const DUAL_CHECK_CONFIDENCE_GAP = 0.18;
 const DUAL_CHECK_TEXT_SIMILARITY_THRESHOLD = 0.45;
 const REVIEW_CONFIDENCE_THRESHOLD = 0.72;
+const ENABLE_ANALYSIS_TRACE = process.env.ANALYSIS_TRACE === "1";
 
 type ConfidenceLevel = "low" | "medium" | "high";
 
@@ -111,19 +112,32 @@ export type ReviewDecisionRecord = {
   decision: ReviewDecision;
 };
 
+function traceAnalysisStage(stage: string, payload: Record<string, unknown>) {
+  if (!ENABLE_ANALYSIS_TRACE) {
+    return;
+  }
+
+  console.info("[analysis-trace]", {
+    stage,
+    at: new Date().toISOString(),
+    ...payload,
+  });
+}
+
 export async function analyzeIncidents(
   inputs: IncidentAnalysisInput[],
   options: AnalyzeIncidentsOptions = {},
 ) {
+  const startedAt = Date.now();
   const provider = getLlmProvider(options.providerId);
   const concurrency = Math.max(1, options.concurrency ?? DEFAULT_ANALYSIS_CONCURRENCY);
 
-  return mapWithConcurrency(inputs, concurrency, async (input) => {
-    const ragContext = input.ragContext ?? (await options.resolveRagContext?.(input)) ?? [];
-
+  const results = await mapWithConcurrency(inputs, concurrency, async (input) => {
     if (!provider) {
-      return buildRuleOnlyResult(input, ragContext);
+      return buildRuleOnlyResult(input, input.ragContext ?? []);
     }
+
+    const ragContext = input.ragContext ?? (await options.resolveRagContext?.(input)) ?? [];
 
     try {
       const startedAt = Date.now();
@@ -151,6 +165,15 @@ export async function analyzeIncidents(
       return buildRuleOnlyResult(input, ragContext);
     }
   });
+
+  traceAnalysisStage("orchestrator_analyze_incidents", {
+    inputCount: inputs.length,
+    providerId: provider?.id ?? "rule_only",
+    concurrency,
+    elapsedMs: Date.now() - startedAt,
+  });
+
+  return results;
 }
 
 export function buildRepresentativeAnalysisPlan(
@@ -187,6 +210,7 @@ export function buildRepresentativeAnalysisPlan(
 export async function analyzeRepresentativeGroups(
   options: AnalyzeRepresentativeGroupsOptions,
 ) {
+  const startedAt = Date.now();
   const resultsByIndex = new Map<number, NormalizedAnalysisResult>();
 
   if (options.llmIndexes.length > 0) {
@@ -203,13 +227,21 @@ export async function analyzeRepresentativeGroups(
   if (options.ruleOnlyIndexes.length > 0) {
     const ruleOnlyResults = await analyzeIncidents(
       options.ruleOnlyIndexes.map((index) => options.inputs[index]),
-      { providerId: null, resolveRagContext: options.resolveRagContext },
+      { providerId: null },
     );
 
     options.ruleOnlyIndexes.forEach((index, resultIndex) => {
       resultsByIndex.set(index, ruleOnlyResults[resultIndex]);
     });
   }
+
+  traceAnalysisStage("orchestrator_representative_groups", {
+    totalGroups: options.inputs.length,
+    llmGroupCount: options.llmIndexes.length,
+    ruleOnlyGroupCount: options.ruleOnlyIndexes.length,
+    resultCount: resultsByIndex.size,
+    elapsedMs: Date.now() - startedAt,
+  });
 
   return resultsByIndex;
 }

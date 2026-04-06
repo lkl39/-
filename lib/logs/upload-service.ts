@@ -16,6 +16,7 @@ const LONG_FILE_BYTES = 50 * 1024;
 const SHORT_LINE_COUNT = 20;
 const SHORT_INCIDENT_COUNT = 3;
 const LONG_INCIDENT_COUNT = 20;
+const ENABLE_ANALYSIS_TRACE = process.env.ANALYSIS_TRACE === "1";
 
 type PendingReviewRow = {
   log_error_id: string;
@@ -41,6 +42,18 @@ export type UploadLogResult = {
   analysisMode: AnalysisMode;
   incidentsCount: number;
 };
+
+function traceAnalysisStage(stage: string, payload: Record<string, unknown>) {
+  if (!ENABLE_ANALYSIS_TRACE) {
+    return;
+  }
+
+  console.info("[analysis-trace]", {
+    stage,
+    at: new Date().toISOString(),
+    ...payload,
+  });
+}
 
 function countLines(text: string) {
   if (!text) {
@@ -116,6 +129,8 @@ export async function uploadAndAnalyzeLog({
   sourceType,
   logBucket,
 }: UploadLogInput): Promise<UploadLogResult> {
+  const workflowStartedAt = Date.now();
+
   if (!(file instanceof File) || file.size === 0) {
     throw new Error("Please choose a log file first.");
   }
@@ -127,6 +142,14 @@ export async function uploadAndAnalyzeLog({
   } catch {
     throw new Error("Failed to read the uploaded file.");
   }
+
+  traceAnalysisStage("file_read", {
+    userId: user.id,
+    fileName: file.name,
+    fileSize: file.size,
+    lineCount: countLines(fileText),
+    elapsedMs: Date.now() - workflowStartedAt,
+  });
 
   const lineCount = countLines(fileText);
   const storagePath = createStoragePath(user.id, file.name);
@@ -146,20 +169,26 @@ export async function uploadAndAnalyzeLog({
     );
   }
 
-  const { data: storedFile, error: downloadError } = await supabase.storage
-    .from(logBucket)
-    .download(storagePath);
+  traceAnalysisStage("storage_upload", {
+    userId: user.id,
+    storagePath,
+    elapsedMs: Date.now() - workflowStartedAt,
+  });
 
-  if (downloadError || !storedFile) {
-    throw new Error(
-      downloadError?.message ?? "Stored file could not be downloaded for analysis.",
-    );
-  }
-
-  const storedFileText = await storedFile.text();
+  const storedFileText = fileText;
+  const detectStartedAt = Date.now();
   const dynamicRules = await getDynamicDetectionRules();
   const incidents = detectLogIncidents(storedFileText, sourceType, dynamicRules);
   const analysisMode = resolveAnalysisMode(file.size, lineCount, incidents.length);
+
+  traceAnalysisStage("rule_detection", {
+    userId: user.id,
+    sourceType,
+    incidentCount: incidents.length,
+    analysisMode,
+    elapsedMs: Date.now() - detectStartedAt,
+    totalElapsedMs: Date.now() - workflowStartedAt,
+  });
 
   const { data: logRecord, error: logInsertError } = await supabase
     .from("logs")
@@ -180,6 +209,12 @@ export async function uploadAndAnalyzeLog({
   if (logInsertError || !logRecord) {
     throw new Error(logInsertError?.message ?? "Failed to create log record.");
   }
+
+  traceAnalysisStage("log_created", {
+    userId: user.id,
+    logId: logRecord.id,
+    elapsedMs: Date.now() - workflowStartedAt,
+  });
 
   try {
     if (incidents.length > 0) {
@@ -203,6 +238,12 @@ export async function uploadAndAnalyzeLog({
         throw new Error(incidentsError?.message ?? "Failed to write detected incidents.");
       }
 
+      traceAnalysisStage("incidents_inserted", {
+        logId: logRecord.id,
+        insertedCount: insertedIncidents.length,
+        totalElapsedMs: Date.now() - workflowStartedAt,
+      });
+
       const { groups, representativeInputs, llmIndexes, ruleOnlyIndexes } =
         buildRepresentativeAnalysisPlan({
           incidents,
@@ -216,6 +257,15 @@ export async function uploadAndAnalyzeLog({
         llmIndexes,
         ruleOnlyIndexes,
         resolveRagContext: resolveKnowledgeBaseContext,
+      });
+
+      traceAnalysisStage("analysis_completed", {
+        logId: logRecord.id,
+        groupCount: groups.length,
+        llmGroupCount: llmIndexes.length,
+        ruleOnlyGroupCount: ruleOnlyIndexes.length,
+        analyzedGroupCount: representativeResults.size,
+        totalElapsedMs: Date.now() - workflowStartedAt,
       });
 
       const reviewDecisionRows = buildReviewDecisions({
@@ -277,6 +327,12 @@ export async function uploadAndAnalyzeLog({
         throw new Error(analysisError.message);
       }
 
+      traceAnalysisStage("analysis_results_inserted", {
+        logId: logRecord.id,
+        rows: analyses.length,
+        totalElapsedMs: Date.now() - workflowStartedAt,
+      });
+
       const reviewRows = mergeReviewRows(reviewDecisionRows, dualCheckReviews);
 
       if (reviewRows.length > 0) {
@@ -286,6 +342,12 @@ export async function uploadAndAnalyzeLog({
           console.error("Failed to insert review cases:", reviewInsertError.message);
         }
       }
+
+      traceAnalysisStage("review_rows_done", {
+        logId: logRecord.id,
+        rows: reviewRows.length,
+        totalElapsedMs: Date.now() - workflowStartedAt,
+      });
     }
 
     const { error: updateError } = await supabase
@@ -299,6 +361,13 @@ export async function uploadAndAnalyzeLog({
     if (updateError) {
       throw new Error(updateError.message);
     }
+
+    traceAnalysisStage("workflow_completed", {
+      logId: logRecord.id,
+      incidentsCount: incidents.length,
+      analysisMode,
+      totalElapsedMs: Date.now() - workflowStartedAt,
+    });
 
     return {
       logId: logRecord.id,
@@ -314,6 +383,12 @@ export async function uploadAndAnalyzeLog({
         completed_at: new Date().toISOString(),
       })
       .eq("id", logRecord.id);
+
+    traceAnalysisStage("workflow_failed", {
+      logId: logRecord.id,
+      error: error instanceof Error ? error.message : "unknown_error",
+      totalElapsedMs: Date.now() - workflowStartedAt,
+    });
 
     throw error;
   }

@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState, type ReactNode } from "react";
 import type { HistoryCaseRow, HistoryCasesPageData } from "@/lib/dashboard/history-cases";
 
@@ -11,6 +12,7 @@ type HistoryCasesPageProps = {
 const PAGE_SIZE = 12;
 
 export function HistoryCasesPage({ data }: HistoryCasesPageProps) {
+  const router = useRouter();
   const [riskFilter, setRiskFilter] = useState("全部级别");
   const [typeFilter, setTypeFilter] = useState("全部类型");
   const [statusFilter, setStatusFilter] = useState("全部状态");
@@ -50,15 +52,121 @@ export function HistoryCasesPage({ data }: HistoryCasesPageProps) {
         </div>
       </header>
 
-      <section className="glass-panel sticky top-20 z-20 mb-8 rounded-2xl border border-[#E2D5C2] p-4 shadow-[0_10px_24px_rgba(53,46,42,0.05)]">
+      <section className="glass-panel mb-8 rounded-2xl border border-[#E2D5C2] p-4 shadow-[0_10px_24px_rgba(53,46,42,0.05)]">
         <div className="mb-3 flex items-center justify-between">
-          <p className="font-label text-[10px] uppercase tracking-widest text-[#8A8178]">历史与知识自由切换</p>
-          <span className="text-[10px] text-[#B8ADA0]">在三个页面之间快速跳转</span>
+          <div>
+            <p className="font-label text-[10px] uppercase tracking-widest text-[#8A8178]">历史与知识页面导航</p>
+            <p className="mt-1 text-xs text-[#8A8178]">进入页面后即可直接判断当前所在位置，并在三页之间切换。</p>
+          </div>
+          <span className="hidden text-[10px] text-[#B8ADA0] md:inline">三页统一工作流入口</span>
         </div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <Link href="/dashboard/tasks" className="rounded-xl border border-[#E2D5C2] bg-white/25 px-4 py-3 text-center text-sm font-medium text-[#6B625B] transition-all hover:border-[#D1B58A] hover:text-[#352E2A]">历史日志存档</Link>
-          <button type="button" className="rounded-xl border border-[#8A5A2B]/30 bg-gradient-to-r from-[#8A5A2B]/20 to-transparent px-4 py-3 text-sm font-bold text-[#8A5A2B]">历史问题库（当前）</button>
-          <Link href="/dashboard/knowledge" className="rounded-xl border border-[#E2D5C2] bg-white/25 px-4 py-3 text-center text-sm font-medium text-[#6B625B] transition-all hover:border-[#D1B58A] hover:text-[#352E2A]">探索根因知识库</Link>
+          <Link href="/dashboard/tasks" className="rounded-xl border border-[#E2D5C2] bg-white/30 px-4 py-3 text-center text-sm font-medium text-[#6B625B] transition-all hover:border-[#D1B58A] hover:text-[#352E2A]">历史日志存档</Link>
+          <button type="button" aria-current="page" className="rounded-xl border border-[#8A5A2B]/40 bg-gradient-to-r from-[#8A5A2B]/22 via-[#D7B389]/12 to-transparent px-4 py-3 text-center text-sm font-bold text-[#8A5A2B] shadow-[0_10px_22px_rgba(138,90,43,0.12)]">
+            历史问题库
+            <span className="ml-2 inline-flex rounded-full bg-[#8A5A2B]/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-[#8A5A2B]">当前</span>
+          </button>
+          <Link href="/dashboard/knowledge" className="rounded-xl border border-[#E2D5C2] bg-white/30 px-4 py-3 text-center text-sm font-medium text-[#6B625B] transition-all hover:border-[#D1B58A] hover:text-[#352E2A]">探索根因知识库</Link>
+        </div>
+      </section>
+
+      <section className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <OpsMetricCard label="待复核" value={data.historicalMissedOps.pendingReviews} tone="text-[#8A5A2B]" hint="当前还未完成人工复核的案例数" />
+        <OpsMetricCard label="已复核" value={data.historicalMissedOps.completedReviews} tone="text-[#6B625B]" hint="已经完成复核、可继续判断是否沉淀的案例数" />
+        <OpsMetricCard label="可回补" value={data.historicalMissedOps.backfillEligibleReviews} tone="text-[#B07A47]" hint="已具备根因或方案，可回补进漏报库的案例数" />
+        <OpsMetricCard label="漏报库条目" value={data.historicalMissedOps.historicalMissedTotal} tone="text-[#6A8F61]" hint={`已人工确认 ${data.historicalMissedOps.verifiedHistoricalMissedTotal} 条`} />
+      </section>
+
+      <section className="mb-8 grid grid-cols-1 items-start gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        <div className="glass-panel rounded-2xl border border-[#E2D5C2] p-6 shadow-[0_10px_24px_rgba(53,46,42,0.05)]">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="font-label text-[10px] uppercase tracking-widest text-[#8A8178]">漏报库运营状态</p>
+              <h2 className="mt-2 text-xl font-bold text-[#352E2A]">历史漏报闭环已接通，等待真实复核数据进入</h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => router.refresh()}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#D8C7AE] bg-[#FBF6ED] text-[#8A5A2B] transition hover:border-[#C9AE86] hover:bg-[#F2E7D7]"
+              aria-label="刷新漏报库运营状态"
+              title="刷新漏报库运营状态"
+            >
+              <span className="material-symbols-outlined text-2xl">cycle</span>
+            </button>
+          </div>
+          <div className="mt-4 space-y-2 text-sm leading-7 text-[#6B625B]">
+            <p>{data.historicalMissedOps.completedReviews > 0 ? `当前已有 ${data.historicalMissedOps.completedReviews} 条复核完成，其中 ${data.historicalMissedOps.backfillEligibleReviews} 条具备漏报回补条件。` : "当前还没有 completed review，所以漏报库还不会自动长数据。"}</p>
+            <p>{data.historicalMissedOps.historicalMissedTotal > 0 ? `漏报库目前已有 ${data.historicalMissedOps.historicalMissedTotal} 条，可在后续同类问题中优先召回。` : "一旦开始完成真实复核，系统就会自动尝试把根因与方案沉淀进 historical_missed_cases。"}</p>
+          </div>
+
+          <div className="mt-6 rounded-2xl border border-[#E8DCCB] bg-[#FBF6ED] p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="font-label text-[10px] uppercase tracking-widest text-[#8A8178]">最近可回补案例</p>
+                <p className="mt-1 text-xs text-[#8A8178]">这些复核结果已经具备沉淀到漏报库的条件。</p>
+              </div>
+              <span className="material-symbols-outlined text-xl text-[#8A5A2B]">playlist_add_check</span>
+            </div>
+            {data.recentBackfillCases.length > 0 ? (
+              <div className="space-y-2">
+                {data.recentBackfillCases.map((item) => (
+                  <div key={item.id} className="rounded-xl border border-white/60 bg-white/70 px-3 py-2">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-[#352E2A]">{item.title}</p>
+                        <p className="mt-1 text-xs text-[#8A8178]">{item.sourceLog}</p>
+                      </div>
+                      <span className="rounded-full bg-[#EFE4D2] px-2 py-1 text-[10px] font-bold text-[#8A5A2B]">可回补</span>
+                    </div>
+                    <p className="mt-2 text-[11px] leading-5 text-[#6B625B]">{`${item.reason} · ${formatDateTime(item.updatedAt)}`}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed border-[#D8C7AE] bg-white/60 px-4 py-5 text-center text-xs text-[#8A8178]">
+                暂无可回补案例，先完成几条真实复核后这里会自动出现内容。
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="glass-panel rounded-2xl border border-[#E2D5C2] p-6 shadow-[0_10px_24px_rgba(53,46,42,0.05)]">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <p className="font-label text-[10px] uppercase tracking-widest text-[#8A8178]">最近漏报案例</p>
+              <h2 className="mt-2 text-lg font-bold text-[#352E2A]">优先召回资产</h2>
+            </div>
+            <Link
+              href="/dashboard/knowledge"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#D6E5D3] bg-[#F4FAF3] text-[#6A8F61] transition hover:border-[#BFD7BB] hover:bg-[#EAF5E8]"
+              aria-label="进入知识库查看召回资产"
+              title="进入知识库查看召回资产"
+            >
+              <span className="material-symbols-outlined text-2xl">library_books</span>
+            </Link>
+          </div>
+          {data.recentHistoricalMissedCases.length > 0 ? (
+            <div className="space-y-3">
+              {data.recentHistoricalMissedCases.map((item) => (
+                <div key={item.id} className="rounded-xl border border-[#E8DCCB] bg-[#FBF6ED] px-4 py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-[#352E2A]">{item.title}</p>
+                      <p className="mt-1 text-xs text-[#8A8178]">{`${item.errorType} · ${item.sourceType}`}</p>
+                    </div>
+                    <span className={item.verified ? "rounded-full bg-[#E7F4E6] px-2 py-1 text-[10px] font-bold text-[#497447]" : "rounded-full bg-[#F3E9D7] px-2 py-1 text-[10px] font-bold text-[#8A6A24]"}>{item.verified ? "已确认" : "待确认"}</span>
+                  </div>
+                  <p className="mt-2 font-label text-[10px] uppercase tracking-widest text-[#8A8178]">{`优先级 ${item.priority} · ${formatDateTime(item.updatedAt)}`}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-[#D8C7AE] bg-[#FBF6ED] px-5 py-8 text-center">
+              <span className="material-symbols-outlined text-3xl text-[#B8ADA0]">history_toggle_off</span>
+              <p className="mt-3 text-sm font-medium text-[#6B625B]">漏报库当前为空</p>
+              <p className="mt-1 text-xs text-[#8A8178]">先完成一批真实复核，系统才会开始沉淀首批历史漏报案例。</p>
+            </div>
+          )}
         </div>
       </section>
 
@@ -129,6 +237,16 @@ export function HistoryCasesPage({ data }: HistoryCasesPageProps) {
         <TeaserCard icon="book" accent="text-[#B07A47]" title="知识沉淀分析" description={`当前已沉淀 ${data.summary.knowledgeTemplateCount} 条有效知识条目，可继续扩展到知识库与规则库。`} href="/dashboard/knowledge" cta="进入知识库" />
         <TeaserCard icon="monitoring" accent="text-[#6B625B]" title="趋势回溯" description={`已归档 ${data.summary.archived} 条记录，其中高风险 ${data.summary.highRisk} 条，可回到工作台继续看趋势图。`} href="/dashboard" cta="查看趋势图" />
       </section>
+    </div>
+  );
+}
+
+function OpsMetricCard({ label, value, tone, hint }: { label: string; value: number; tone: string; hint: string }) {
+  return (
+    <div className="glass-panel rounded-2xl border border-[#E2D5C2] p-5 shadow-[0_10px_24px_rgba(53,46,42,0.05)]">
+      <p className="font-label text-[10px] uppercase tracking-widest text-[#8A8178]">{label}</p>
+      <p className={`mt-3 text-3xl font-extrabold tracking-tight ${tone}`}>{value}</p>
+      <p className="mt-2 text-xs leading-6 text-[#8A8178]">{hint}</p>
     </div>
   );
 }

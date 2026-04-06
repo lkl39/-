@@ -1,5 +1,9 @@
 ﻿import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server-client";
+import {
+  backfillHistoricalMissedCasesForUser,
+  syncHistoricalMissedCaseFromReviewCase,
+} from "@/lib/analysis/missed-case-library";
 import { getSupabaseEnv, hasSupabaseEnv } from "@/lib/supabase/env";
 import { toIssueTypeDisplayName } from "@/lib/labels/issue-type";
 
@@ -361,6 +365,10 @@ function toKnowledgeSourceLabel(value: string | null | undefined) {
   if (raw === "community") return "社区经验";
   if (!raw) return "内部资料";
   return raw.replace(/_/g, "-");
+}
+
+function hasMeaningfulText(value: unknown) {
+  return String(value ?? "").trim().length > 0;
 }
 
 export async function GET(request: Request) {
@@ -1121,6 +1129,179 @@ export async function GET(request: Request) {
     return NextResponse.json({ rows });
   }
 
+  if (view === "historical-missed-library") {
+    const [rowsResult, totalResult, verifiedResult] = await Promise.all([
+      supabase
+        .from("historical_missed_cases")
+        .select("id, title, error_type, source_type, log_excerpt, root_cause, solution, source, verified, updated_at, priority")
+        .is("archived_at", null)
+        .order("updated_at", { ascending: false })
+        .limit(100),
+      supabase
+        .from("historical_missed_cases")
+        .select("id", { count: "exact", head: true })
+        .is("archived_at", null),
+      supabase
+        .from("historical_missed_cases")
+        .select("id", { count: "exact", head: true })
+        .is("archived_at", null)
+        .eq("verified", true),
+    ]);
+
+    const rows = (rowsResult.data ?? []).map((item) => ({
+      id: item.id,
+      title: String(item.title ?? "未命名漏报案例").trim(),
+      errorType: String(item.error_type ?? "unknown_error").trim(),
+      sourceType: String(item.source_type ?? "custom").trim(),
+      logExcerpt: String(item.log_excerpt ?? "").trim(),
+      rootCause: String(item.root_cause ?? "").trim(),
+      solution: String(item.solution ?? "").trim(),
+      source: String(item.source ?? "manual_review_confirmed").trim(),
+      verified: item.verified === true,
+      updatedAt: asIsoDate(item.updated_at),
+      priority: Number(item.priority ?? 120),
+    }));
+
+    return NextResponse.json({
+      summary: {
+        total: totalResult.count ?? 0,
+        verified: verifiedResult.count ?? 0,
+      },
+      rows,
+    });
+  }
+
+  if (view === "historical-missed-ops") {
+    const [pendingResult, completedCountResult, completedRowsResult, historicalRowsResult, historicalTotalResult, historicalVerifiedResult] =
+      await Promise.all([
+        supabase
+          .from("review_cases")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .eq("review_status", "pending"),
+        supabase
+          .from("review_cases")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .eq("review_status", "completed"),
+        supabase
+          .from("review_cases")
+          .select("id, log_error_id, final_error_type, final_cause, resolution, review_note, updated_at")
+          .eq("user_id", user.id)
+          .eq("review_status", "completed")
+          .order("updated_at", { ascending: false })
+          .limit(200),
+        supabase
+          .from("historical_missed_cases")
+          .select("id, title, error_type, source_type, updated_at, verified, priority")
+          .is("archived_at", null)
+          .order("updated_at", { ascending: false })
+          .limit(12),
+        supabase
+          .from("historical_missed_cases")
+          .select("id", { count: "exact", head: true })
+          .is("archived_at", null),
+        supabase
+          .from("historical_missed_cases")
+          .select("id", { count: "exact", head: true })
+          .is("archived_at", null)
+          .eq("verified", true),
+      ]);
+
+    const completedRows = completedRowsResult.data ?? [];
+    const completedLogErrorIds = Array.from(
+      new Set(
+        completedRows
+          .map((item) => item.log_error_id)
+          .filter((value): value is string => typeof value === "string" && value.length > 0),
+      ),
+    );
+
+    const analysisRowsResult =
+      completedLogErrorIds.length > 0
+        ? await supabase
+            .from("analysis_results")
+            .select("log_error_id, cause, repair_suggestion, created_at")
+            .eq("user_id", user.id)
+            .in("log_error_id", completedLogErrorIds)
+            .order("created_at", { ascending: false })
+            .limit(500)
+        : { data: [] as Array<{ log_error_id: string; cause: string | null; repair_suggestion: string | null; created_at: string | null }> };
+
+    const latestAnalysisByErrorId = new Map<
+      string,
+      { cause: string | null; repair_suggestion: string | null; created_at: string | null }
+    >();
+
+    for (const item of analysisRowsResult.data ?? []) {
+      if (!latestAnalysisByErrorId.has(item.log_error_id)) {
+        latestAnalysisByErrorId.set(item.log_error_id, item);
+      }
+    }
+
+    const recentCompletedReviews = completedRows.slice(0, 20).map((item) => {
+      const analysis = item.log_error_id ? latestAnalysisByErrorId.get(item.log_error_id) : null;
+      const hasFinalCause = hasMeaningfulText(item.final_cause);
+      const hasResolution = hasMeaningfulText(item.resolution);
+      const hasReviewNote = hasMeaningfulText(item.review_note);
+      const hasAnalysisCause = hasMeaningfulText(analysis?.cause);
+      const hasAnalysisSuggestion = hasMeaningfulText(analysis?.repair_suggestion);
+      const eligibleForBackfill =
+        hasFinalCause ||
+        hasResolution ||
+        hasReviewNote ||
+        hasAnalysisCause ||
+        hasAnalysisSuggestion;
+
+      return {
+        reviewCaseId: String(item.id),
+        logErrorId: String(item.log_error_id ?? ""),
+        finalErrorType: String(item.final_error_type ?? "").trim(),
+        updatedAt: asIsoDate(item.updated_at),
+        hasFinalCause,
+        hasResolution,
+        hasReviewNote,
+        hasAnalysisCause,
+        hasAnalysisSuggestion,
+        eligibleForBackfill,
+      };
+    });
+
+    const backfillEligibleReviews = completedRows.reduce((total, item) => {
+      const analysis = item.log_error_id ? latestAnalysisByErrorId.get(item.log_error_id) : null;
+      const eligible =
+        hasMeaningfulText(item.final_cause) ||
+        hasMeaningfulText(item.resolution) ||
+        hasMeaningfulText(item.review_note) ||
+        hasMeaningfulText(analysis?.cause) ||
+        hasMeaningfulText(analysis?.repair_suggestion);
+
+      return total + (eligible ? 1 : 0);
+    }, 0);
+
+    const recentHistoricalMissedCases = (historicalRowsResult.data ?? []).map((item) => ({
+      id: item.id,
+      title: String(item.title ?? "未命名漏报案例").trim(),
+      errorType: String(item.error_type ?? "unknown_error").trim(),
+      sourceType: String(item.source_type ?? "custom").trim(),
+      updatedAt: asIsoDate(item.updated_at),
+      verified: item.verified === true,
+      priority: Number(item.priority ?? 120),
+    }));
+
+    return NextResponse.json({
+      summary: {
+        pendingReviews: pendingResult.count ?? 0,
+        completedReviews: completedCountResult.count ?? 0,
+        backfillEligibleReviews,
+        historicalMissedTotal: historicalTotalResult.count ?? 0,
+        verifiedHistoricalMissedTotal: historicalVerifiedResult.count ?? 0,
+      },
+      recentCompletedReviews,
+      recentHistoricalMissedCases,
+    });
+  }
+
   if (view === "reviews" || view === "history-cases") {
     const { data: reviewRows } = await supabase
       .from("review_cases")
@@ -1619,6 +1800,7 @@ export async function POST(request: Request) {
     systemSettings?: unknown;
     exportTemplates?: unknown;
     activeExportTemplateId?: string;
+    limit?: number;
   };
 
   if (body.action === "update-profile") {
@@ -1734,7 +1916,36 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
+    const { data: reviewCase } = await supabase
+      .from("review_cases")
+      .select("id, log_error_id, final_error_type")
+      .eq("id", reviewCaseId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (reviewCase?.log_error_id) {
+      await syncHistoricalMissedCaseFromReviewCase({
+        supabase,
+        reviewCaseId: reviewCase.id,
+        fallbackErrorType: finalErrorType || reviewCase.final_error_type,
+      });
+    }
+
     return NextResponse.json({ ok: true });
+  }
+
+  if (body.action === "backfill-historical-missed-cases") {
+    const limit = Math.min(Math.max(Number(body.limit ?? 100), 1), 500);
+    const result = await backfillHistoricalMissedCasesForUser({
+      supabase,
+      userId: user.id,
+      limit,
+    });
+
+    return NextResponse.json({
+      ok: true,
+      ...result,
+    });
   }
 
   if (body.action === "update-system-settings") {
@@ -1968,6 +2179,7 @@ function inferTemplateFormatFromFileName(fileName: string) {
   if (ext === "txt" || ext === "md") return "TEXT";
   return ext ? ext.toUpperCase() : "FILE";
 }
+
 
 
 

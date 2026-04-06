@@ -1,12 +1,21 @@
+﻿import type { MatchType, RiskLevel, RuleCategory } from "@/lib/rules/types";
+
 export type NormalizedRuleImport = {
+  templateRuleId: string | null;
   name: string;
   description: string | null;
+  ruleCategory: RuleCategory;
   pattern: string;
-  matchType: "keyword" | "regex";
+  matchType: MatchType;
   flags: string | null;
   errorType: string;
-  riskLevel: "low" | "medium" | "high";
+  riskLevel: RiskLevel;
   sourceTypes: string[];
+  subTags: string[];
+  source: string | null;
+  scenario: string | null;
+  exampleLog: string | null;
+  notes: string | null;
   enabled: boolean;
 };
 

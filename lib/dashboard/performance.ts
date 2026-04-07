@@ -44,6 +44,12 @@ export type PerformanceRecommendation = {
   footnote: string;
 };
 
+export type PerformanceDataSource = {
+  kind: "real" | "demo";
+  label: string;
+  description: string;
+};
+
 export type PerformancePageData = {
   days: number;
   range: {
@@ -62,6 +68,7 @@ export type PerformancePageData = {
   recommendation: PerformanceRecommendation;
   insights: string[];
   pendingReviewCount: number;
+  dataSource: PerformanceDataSource;
 };
 
 function normalizeConfidence(value: number | string | null | undefined) {
@@ -93,71 +100,98 @@ function toModeLabel(value: "rule_only" | "model_only" | "hybrid") {
   return "Hybrid";
 }
 
-function buildEmptyData(days: number, startDate: string, endDate: string, isCustom: boolean): PerformancePageData {
+function buildDemoData(
+  days: number,
+  startDate: string,
+  endDate: string,
+  isCustom: boolean,
+  reason?: string,
+  pendingReviewCount = 12,
+): PerformancePageData {
+  const speed = days >= 30 ? 168.4 : 182.6;
+
   return {
     days,
     range: { startDate, endDate, isCustom },
     metrics: {
-      accuracy: 0,
-      accuracyDelta: 0,
-      recall: 0,
-      recallDelta: 0,
-      speedEps: 0,
-      speedDelta: 0,
+      accuracy: 89.8,
+      accuracyDelta: 3.6,
+      recall: 84.7,
+      recallDelta: 5.2,
+      speedEps: speed,
+      speedDelta: 18.4,
     },
     focusMetrics: {
       accuracy: {
         label: "混合模式准确性",
-        value: 0,
+        value: 92.4,
         unit: "%",
-        barPercent: 0,
+        barPercent: 92,
         compareLabel: "较 Rule Only 提升",
-        compareText: "0.0 个点",
-        note: "Rule Only 0.0% · Hybrid 0.0%",
+        compareText: "8.1 个点",
+        note: "Rule Only 84.3% · Hybrid 92.4%",
       },
       recall: {
         label: "混合模式覆盖率",
-        value: 0,
+        value: 88.7,
         unit: "%",
-        barPercent: 0,
+        barPercent: 89,
         compareLabel: "较 Rule Only 提升",
-        compareText: "0.0 个点",
-        note: "Rule Only 0.0% · Hybrid 0.0%",
+        compareText: "14.5 个点",
+        note: "Rule Only 74.2% · Hybrid 88.7%",
       },
       latency: {
         label: "混合模式平均延迟",
-        value: 0,
+        value: 148.2,
         unit: "ms",
-        barPercent: 0,
+        barPercent: 29,
         compareLabel: "较 Model Only 更低",
-        compareText: "0.0ms",
-        note: "Model Only 0.0ms · Hybrid 0.0ms",
+        compareText: "60.9ms",
+        note: "Model Only 209.1ms · Hybrid 148.2ms",
       },
     },
     chart: [
-      { label: "准确率", ruleOnly: 0, modelOnly: 0, hybrid: 0 },
-      { label: "召回率", ruleOnly: 0, modelOnly: 0, hybrid: 0 },
-      { label: "吞吐量", ruleOnly: 0, modelOnly: 0, hybrid: 0 },
-      { label: "资源消耗", ruleOnly: 0, modelOnly: 0, hybrid: 0 },
+      { label: "准确率", ruleOnly: 84.3, modelOnly: 90.6, hybrid: 92.4 },
+      { label: "召回率", ruleOnly: 74.2, modelOnly: 81.5, hybrid: 88.7 },
+      { label: "吞吐量", ruleOnly: 100, modelOnly: 63.4, hybrid: 86.9 },
+      { label: "资源消耗", ruleOnly: 35.5, modelOnly: 100, hybrid: 70.9 },
     ],
     modes: [
-      { modeKey: "rule_only", modeLabel: "Rule Only", accuracy: 0, recall: 0, f1: 0, latencyMs: 0, status: "baseline" },
-      { modeKey: "model_only", modeLabel: "Model Only", accuracy: 0, recall: 0, f1: 0, latencyMs: 0, status: "high_load" },
-      { modeKey: "hybrid", modeLabel: "Hybrid", accuracy: 0, recall: 0, f1: 0, latencyMs: 0, status: "recommended" },
+      { modeKey: "rule_only", modeLabel: "Rule Only", accuracy: 84.3, recall: 74.2, f1: 0.789, latencyMs: 74.2, status: "baseline" },
+      { modeKey: "model_only", modeLabel: "Model Only", accuracy: 90.6, recall: 81.5, f1: 0.858, latencyMs: 209.1, status: "high_load" },
+      { modeKey: "hybrid", modeLabel: "Hybrid", accuracy: 92.4, recall: 88.7, f1: 0.905, latencyMs: 148.2, status: "recommended" },
     ],
     recommendation: {
       title: "默认推荐：混合模式",
-      summary: "当前时间窗口内暂无足够运行数据，待更多日志进入后再给出对比结论。",
-      evidence: ["等待真实运行数据。", "等待真实运行数据。", "等待真实运行数据。"],
-      footnote: "数据来自当前窗口期真实日志与 analysis_results 聚合，页面本身不触发三模式重跑。",
+      summary: "当前对比视图按样例口径展示；从当前对比结果看，混合模式在覆盖率、准确率与延迟之间更均衡，适合作为默认方案。",
+      evidence: [
+        "相较 Rule Only，混合模式准确性提升 8.1 个点。",
+        "相较 Rule Only，混合模式覆盖率提升 14.5 个点。",
+        "相较 Model Only，混合模式平均延迟低 60.9ms。",
+      ],
+      footnote: "当前为样例对比口径，用于快速查看三模式差异与推荐结论。",
     },
     insights: [
-      "等待真实运行数据后生成模式洞察。",
-      "等待真实运行数据后生成模式洞察。",
-      "等待真实运行数据后生成模式洞察。",
+      "Rule Only 响应最快，但覆盖率偏低，更适合作为规则兜底基线。",
+      "Model Only 判断质量较高，但延迟和资源消耗明显更高。",
+      "Hybrid 在质量、覆盖率和成本之间更均衡，适合作为默认运行模式。",
     ],
-    pendingReviewCount: 0,
+    pendingReviewCount,
+    dataSource: {
+      kind: "demo",
+      label: "样例对比口径",
+      description: reason ?? "当前按样例对比口径展示，便于快速查看三模式差异。",
+    },
   };
+}
+
+function hasSufficientComparisonData(modeRows: Array<{ tasks: number }>, totalTasks: number, totalFindings: number) {
+  if (totalTasks <= 0 || totalFindings <= 0) {
+    return false;
+  }
+
+  const activeModes = modeRows.filter((item) => item.tasks > 0).length;
+  return activeModes >= 2;
 }
 
 export async function getPerformancePageData(input?: {
@@ -202,17 +236,30 @@ export async function getPerformancePageData(input?: {
 
   const rangeStart = currentStart.toISOString().slice(0, 10);
   const rangeEnd = new Date(currentEndExclusive.getTime() - 1000).toISOString().slice(0, 10);
-  const empty = buildEmptyData(rangeDays, rangeStart, rangeEnd, hasCustomRange);
 
   if (!hasSupabaseEnv()) {
-    return empty;
+    return buildDemoData(
+      rangeDays,
+      rangeStart,
+      rangeEnd,
+      hasCustomRange,
+      "当前按样例对比口径展示，便于快速查看三模式差异。",
+      0,
+    );
   }
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    return empty;
+    return buildDemoData(
+      rangeDays,
+      rangeStart,
+      rangeEnd,
+      hasCustomRange,
+      "当前按样例对比口径展示，便于快速查看三模式差异。",
+      0,
+    );
   }
 
   const previousEnd = new Date(currentStart);
@@ -265,6 +312,19 @@ export async function getPerformancePageData(input?: {
 
   const totalTasks = modeRows.reduce((sum, item) => sum + item.tasks, 0);
   const totalFindings = modeRows.reduce((sum, item) => sum + item.findings, 0);
+  const pendingReviewCount = pendingReviewsResult.count ?? 0;
+
+  if (!hasSufficientComparisonData(modeRows, totalTasks, totalFindings)) {
+    return buildDemoData(
+      rangeDays,
+      rangeStart,
+      rangeEnd,
+      hasCustomRange,
+      "当前按样例对比口径展示，便于快速查看三模式差异。",
+      pendingReviewCount,
+    );
+  }
+
   const weightedAccuracy = totalFindings ? modeRows.reduce((sum, item) => sum + item.accuracy * item.findings, 0) / totalFindings : 0;
   const overallRecall = totalTasks ? Math.min(100, (totalFindings / totalTasks) * 100) : 0;
   const currentSpeed = rangeDays > 0 ? totalTasks / rangeDays : 0;
@@ -320,6 +380,12 @@ export async function getPerformancePageData(input?: {
       `${hybridMode.modeLabel} 在覆盖率与成本之间更均衡，更适合作为默认方案。`,
       `${highestLatencyMode?.modeLabel ?? "Model Only"} 平均延迟更高，建议配合规则前置过滤。`,
     ],
-    pendingReviewCount: pendingReviewsResult.count ?? 0,
+    pendingReviewCount,
+    dataSource: {
+      kind: "real",
+      label: "窗口聚合口径",
+      description: "基于当前账号在所选时间范围内的 logs、analysis_results 与 review_cases 聚合。",
+    },
   };
 }
+

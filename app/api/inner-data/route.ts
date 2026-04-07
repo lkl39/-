@@ -6,6 +6,7 @@ import {
 } from "@/lib/analysis/missed-case-library";
 import { getSupabaseEnv, hasSupabaseEnv } from "@/lib/supabase/env";
 import { toIssueTypeDisplayName } from "@/lib/labels/issue-type";
+import { getPerformancePageData } from "@/lib/dashboard/performance";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -192,33 +193,7 @@ function toRiskValue(value: string | null | undefined) {
   return "low";
 }
 
-function normalizeConfidence(value: number | string | null | undefined) {
-  if (typeof value === "number") {
-    return Number.isFinite(value) ? value : 0;
-  }
 
-  if (typeof value === "string") {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : 0;
-  }
-
-  return 0;
-}
-
-function normalizeAnalysisMode(value: string | null | undefined) {
-  const raw = String(value ?? "").trim().toLowerCase();
-  if (!raw) return "hybrid";
-  if (raw === "rule_only" || raw === "rules_fast") return "rule_only";
-  if (raw === "model_only") return "model_only";
-  if (raw === "summarized_hybrid" || raw === "hybrid") return "hybrid";
-  return "hybrid";
-}
-
-function toModeLabel(value: "rule_only" | "model_only" | "hybrid") {
-  if (value === "rule_only") return "Rule Only (静态规则)";
-  if (value === "model_only") return "Model Only (模型推理)";
-  return "Hybrid Mode (混合模式)";
-}
 
 function toIssueDisplayName(value: string | null | undefined) {
   return toIssueTypeDisplayName(value);
@@ -372,6 +347,17 @@ function hasMeaningfulText(value: unknown) {
 }
 
 export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const view = searchParams.get("view") ?? "dashboard";
+
+  if (view === "performance") {
+    const days = Number(searchParams.get("days") ?? "7");
+    const startDate = String(searchParams.get("startDate") ?? "").trim();
+    const endDate = String(searchParams.get("endDate") ?? "").trim();
+    const data = await getPerformancePageData({ days, startDate, endDate });
+    return NextResponse.json(data);
+  }
+
   if (!hasSupabaseEnv()) {
     return NextResponse.json({ error: "Supabase 未配置。" }, { status: 503 });
   }
@@ -384,9 +370,6 @@ export async function GET(request: Request) {
   if (!user) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
-
-  const { searchParams } = new URL(request.url);
-  const view = searchParams.get("view") ?? "dashboard";
 
   if (view === "dashboard") {
     const [{ count: totalLogs }, { count: totalIssues }, { count: pendingReviews }, { count: highRisk }, { data: pendingCases }] =
@@ -534,301 +517,6 @@ export async function GET(request: Request) {
       pendingReviewCount: pendingReviews ?? 0,
     });
   }
-
-  if (view === "performance") {
-    const daysParam = Number(searchParams.get("days") ?? "7");
-    const startDateParam = String(searchParams.get("startDate") ?? "").trim();
-    const endDateParam = String(searchParams.get("endDate") ?? "").trim();
-    const isValidDateInput = /^\d{4}-\d{2}-\d{2}$/;
-    const hasCustomRange = isValidDateInput.test(startDateParam) && isValidDateInput.test(endDateParam);
-
-    const now = new Date();
-    let currentStart: Date;
-    let currentEndExclusive: Date;
-    let rangeDays = 7;
-
-    if (hasCustomRange) {
-      const customStart = new Date(`${startDateParam}T00:00:00.000Z`);
-      const customEndExclusive = new Date(`${endDateParam}T00:00:00.000Z`);
-      customEndExclusive.setUTCDate(customEndExclusive.getUTCDate() + 1);
-
-      if (Number.isFinite(customStart.getTime()) && Number.isFinite(customEndExclusive.getTime()) && customStart < customEndExclusive) {
-        currentStart = customStart;
-        currentEndExclusive = customEndExclusive;
-        const diffMs = currentEndExclusive.getTime() - currentStart.getTime();
-        rangeDays = Math.max(1, Math.round(diffMs / (24 * 60 * 60 * 1000)));
-      } else {
-        currentStart = new Date(now);
-        currentStart.setDate(now.getDate() - 6);
-        currentEndExclusive = new Date(now);
-      }
-    } else {
-      const days = daysParam === 30 ? 30 : 7;
-      currentStart = new Date(now);
-      currentStart.setDate(now.getDate() - days + 1);
-      currentEndExclusive = new Date(now);
-      rangeDays = days;
-    }
-
-    const previousEnd = new Date(currentStart);
-    const previousStart = new Date(previousEnd);
-    previousStart.setDate(previousEnd.getDate() - rangeDays);
-
-    const [currentLogsResult, currentAnalysesResult, previousLogsResult, previousAnalysesResult, pendingReviewsResult] = await Promise.all([
-      supabase
-        .from("logs")
-        .select("id, analysis_mode, created_at")
-        .eq("user_id", user.id)
-        .gte("created_at", currentStart.toISOString())
-        .lt("created_at", currentEndExclusive.toISOString())
-        .order("created_at", { ascending: false })
-        .limit(5000),
-      supabase
-        .from("analysis_results")
-        .select("log_id, analysis_mode, confidence, latency_ms")
-        .eq("user_id", user.id)
-        .gte("created_at", currentStart.toISOString())
-        .lt("created_at", currentEndExclusive.toISOString())
-        .order("created_at", { ascending: false })
-        .limit(10000),
-      supabase
-        .from("logs")
-        .select("id, analysis_mode, created_at")
-        .eq("user_id", user.id)
-        .gte("created_at", previousStart.toISOString())
-        .lt("created_at", previousEnd.toISOString())
-        .order("created_at", { ascending: false })
-        .limit(5000),
-      supabase
-        .from("analysis_results")
-        .select("log_id, analysis_mode, confidence, latency_ms")
-        .eq("user_id", user.id)
-        .gte("created_at", previousStart.toISOString())
-        .lt("created_at", previousEnd.toISOString())
-        .order("created_at", { ascending: false })
-        .limit(10000),
-      supabase
-        .from("review_cases")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .eq("review_status", "pending"),
-    ]);
-
-    const modeKeys = ["rule_only", "model_only", "hybrid"] as const;
-    const modeStats = new Map(
-      modeKeys.map((key) => [
-        key,
-        { tasks: 0, findings: 0, confidenceSum: 0, latencySum: 0, latencyCount: 0 },
-      ]),
-    );
-
-    for (const item of currentLogsResult.data ?? []) {
-      const mode = normalizeAnalysisMode(item.analysis_mode) as (typeof modeKeys)[number];
-      const stat = modeStats.get(mode);
-      if (!stat) continue;
-      stat.tasks += 1;
-    }
-
-    for (const item of currentAnalysesResult.data ?? []) {
-      const mode = normalizeAnalysisMode(item.analysis_mode) as (typeof modeKeys)[number];
-      const stat = modeStats.get(mode);
-      if (!stat) continue;
-      stat.findings += 1;
-      stat.confidenceSum += normalizeConfidence(item.confidence);
-      if (typeof item.latency_ms === "number" && Number.isFinite(item.latency_ms)) {
-        stat.latencySum += item.latency_ms;
-        stat.latencyCount += 1;
-      }
-    }
-
-    const previousLogs = previousLogsResult.data ?? [];
-    const previousAnalyses = previousAnalysesResult.data ?? [];
-    const previousConfidenceAvg = previousAnalyses.length
-      ? (previousAnalyses.reduce((sum, item) => sum + normalizeConfidence(item.confidence), 0) /
-          previousAnalyses.length) *
-        100
-      : 0;
-
-    const previousRecall = previousLogs.length
-      ? Math.min(100, (previousAnalyses.length / previousLogs.length) * 100)
-      : 0;
-
-    const previousSpeed = rangeDays > 0 ? previousLogs.length / rangeDays : 0;
-
-    const modeRows = modeKeys.map((mode) => {
-      const stat = modeStats.get(mode)!;
-      const accuracy = stat.findings > 0 ? (stat.confidenceSum / stat.findings) * 100 : 0;
-      const recall = stat.tasks > 0 ? Math.min(100, (stat.findings / stat.tasks) * 100) : 0;
-      const f1 = accuracy + recall > 0 ? (2 * accuracy * recall) / (accuracy + recall) : 0;
-      const latencyMs = stat.latencyCount > 0 ? stat.latencySum / stat.latencyCount : 0;
-
-      return {
-        mode,
-        modeLabel: toModeLabel(mode),
-        tasks: stat.tasks,
-        findings: stat.findings,
-        accuracy: Number(accuracy.toFixed(2)),
-        recall: Number(recall.toFixed(2)),
-        f1: Number((f1 / 100).toFixed(3)),
-        latencyMs: Number(latencyMs.toFixed(1)),
-      };
-    });
-
-    const totalTasks = modeRows.reduce((sum, item) => sum + item.tasks, 0);
-    const totalFindings = modeRows.reduce((sum, item) => sum + item.findings, 0);
-    const weightedAccuracy = totalFindings
-      ? modeRows.reduce((sum, item) => sum + item.accuracy * item.findings, 0) / totalFindings
-      : 0;
-    const overallRecall = totalTasks ? Math.min(100, (totalFindings / totalTasks) * 100) : 0;
-    const currentSpeed = rangeDays > 0 ? totalTasks / rangeDays : 0;
-
-    const latencyMax = Math.max(...modeRows.map((item) => item.latencyMs), 1);
-    const speedMax = Math.max(...modeRows.map((item) => item.tasks / Math.max(1, rangeDays)), 1);
-
-    const chart = [
-      {
-        label: "准确率",
-        ruleOnly: Number((modeRows[0]?.accuracy ?? 0).toFixed(1)),
-        modelOnly: Number((modeRows[1]?.accuracy ?? 0).toFixed(1)),
-        hybrid: Number((modeRows[2]?.accuracy ?? 0).toFixed(1)),
-      },
-      {
-        label: "召回率",
-        ruleOnly: Number((modeRows[0]?.recall ?? 0).toFixed(1)),
-        modelOnly: Number((modeRows[1]?.recall ?? 0).toFixed(1)),
-        hybrid: Number((modeRows[2]?.recall ?? 0).toFixed(1)),
-      },
-      {
-        label: "吞吐量",
-        ruleOnly: Number((((modeRows[0]?.tasks ?? 0) / Math.max(1, rangeDays) / speedMax) * 100).toFixed(1)),
-        modelOnly: Number((((modeRows[1]?.tasks ?? 0) / Math.max(1, rangeDays) / speedMax) * 100).toFixed(1)),
-        hybrid: Number((((modeRows[2]?.tasks ?? 0) / Math.max(1, rangeDays) / speedMax) * 100).toFixed(1)),
-      },
-      {
-        label: "资源消耗",
-        ruleOnly: Number((((modeRows[0]?.latencyMs ?? 0) / latencyMax) * 100).toFixed(1)),
-        modelOnly: Number((((modeRows[1]?.latencyMs ?? 0) / latencyMax) * 100).toFixed(1)),
-        hybrid: Number((((modeRows[2]?.latencyMs ?? 0) / latencyMax) * 100).toFixed(1)),
-      },
-    ];
-
-    const bestAccuracyMode = [...modeRows].sort((a, b) => b.accuracy - a.accuracy)[0];
-    const bestSpeedMode = [...modeRows].sort((a, b) => b.tasks - a.tasks)[0];
-    const highestLatencyMode = [...modeRows].sort((a, b) => b.latencyMs - a.latencyMs)[0];
-    const bestF1Mode = [...modeRows].sort((a, b) => b.f1 - a.f1)[0];
-
-    const emptyModeRow = {
-      mode: "hybrid" as const,
-      modeLabel: toModeLabel("hybrid"),
-      tasks: 0,
-      findings: 0,
-      accuracy: 0,
-      recall: 0,
-      f1: 0,
-      latencyMs: 0,
-    };
-    const ruleMode = modeRows.find((item) => item.mode === "rule_only") ?? { ...emptyModeRow, mode: "rule_only" as const, modeLabel: toModeLabel("rule_only") };
-    const modelMode = modeRows.find((item) => item.mode === "model_only") ?? { ...emptyModeRow, mode: "model_only" as const, modeLabel: toModeLabel("model_only") };
-    const hybridMode = modeRows.find((item) => item.mode === "hybrid") ?? emptyModeRow;
-
-    const hybridAccuracyGainVsRule = Number((hybridMode.accuracy - ruleMode.accuracy).toFixed(1));
-    const hybridRecallGainVsRule = Number((hybridMode.recall - ruleMode.recall).toFixed(1));
-    const hybridLatencySavingVsModel = Number((modelMode.latencyMs - hybridMode.latencyMs).toFixed(1));
-    const latencyBarPercent =
-      modelMode.latencyMs > 0
-        ? Math.max(
-            8,
-            Math.min(100, Math.round((Math.max(0, hybridLatencySavingVsModel) / modelMode.latencyMs) * 100)),
-          )
-        : 0;
-    const recommendationTitle =
-      bestF1Mode?.mode === "hybrid" ? "默认推荐：混合模式" : "默认推荐：混合模式（综合口径）";
-    const recommendationSummary =
-      `在最近 ${rangeDays} 天的真实运行窗口里，混合模式同时保持 ${hybridMode.accuracy.toFixed(1)}% 的判断质量、` +
-      `${hybridMode.recall.toFixed(1)}% 的问题覆盖率，并将平均延迟控制在 ${hybridMode.latencyMs.toFixed(1)}ms。`;
-    const latencyEvidence =
-      hybridLatencySavingVsModel >= 0
-        ? `相较 Model Only，混合模式平均延迟低 ${Math.abs(hybridLatencySavingVsModel).toFixed(1)}ms，更适合作为默认路径。`
-        : `当前窗口期混合模式平均延迟高 ${Math.abs(hybridLatencySavingVsModel).toFixed(1)}ms，但换来了更高覆盖率与更均衡的综合表现。`;
-
-    return NextResponse.json({
-      days: rangeDays,
-      range: {
-        startDate: currentStart.toISOString().slice(0, 10),
-        endDate: new Date(currentEndExclusive.getTime() - 1000).toISOString().slice(0, 10),
-        isCustom: hasCustomRange,
-      },
-      metrics: {
-        accuracy: Number(weightedAccuracy.toFixed(1)),
-        accuracyDelta: Number((weightedAccuracy - previousConfidenceAvg).toFixed(1)),
-        recall: Number(overallRecall.toFixed(1)),
-        recallDelta: Number((overallRecall - previousRecall).toFixed(1)),
-        speedEps: Number(currentSpeed.toFixed(1)),
-        speedDelta: Number((currentSpeed - previousSpeed).toFixed(1)),
-      },
-      focusMetrics: {
-        accuracy: {
-          label: "混合模式准确性",
-          value: Number(hybridMode.accuracy.toFixed(1)),
-          unit: "%",
-          barPercent: Math.max(0, Math.min(100, Math.round(hybridMode.accuracy))),
-          compareLabel: hybridAccuracyGainVsRule >= 0 ? "较 Rule Only 提升" : "较 Rule Only 下降",
-          compareText: `${Math.abs(hybridAccuracyGainVsRule).toFixed(1)} 个点`,
-          note: `Rule Only ${ruleMode.accuracy.toFixed(1)}% · Hybrid ${hybridMode.accuracy.toFixed(1)}%`,
-        },
-        recall: {
-          label: "混合模式覆盖率",
-          value: Number(hybridMode.recall.toFixed(1)),
-          unit: "%",
-          barPercent: Math.max(0, Math.min(100, Math.round(hybridMode.recall))),
-          compareLabel: hybridRecallGainVsRule >= 0 ? "较 Rule Only 提升" : "较 Rule Only 下降",
-          compareText: `${Math.abs(hybridRecallGainVsRule).toFixed(1)} 个点`,
-          note: `Rule Only ${ruleMode.recall.toFixed(1)}% · Hybrid ${hybridMode.recall.toFixed(1)}%`,
-        },
-        latency: {
-          label: "混合模式平均延迟",
-          value: Number(hybridMode.latencyMs.toFixed(1)),
-          unit: "ms",
-          barPercent: latencyBarPercent,
-          compareLabel: hybridLatencySavingVsModel >= 0 ? "较 Model Only 更低" : "较 Model Only 更高",
-          compareText: `${Math.abs(hybridLatencySavingVsModel).toFixed(1)}ms`,
-          note: `Model Only ${modelMode.latencyMs.toFixed(1)}ms · Hybrid ${hybridMode.latencyMs.toFixed(1)}ms`,
-        },
-      },
-      chart,
-      modes: modeRows.map((item) => ({
-        modeKey: item.mode,
-        modeLabel: item.modeLabel,
-        accuracy: item.accuracy,
-        recall: item.recall,
-        f1: item.f1,
-        latencyMs: item.latencyMs,
-        status:
-          item.mode === "hybrid"
-            ? "recommended"
-            : item.mode === "model_only"
-              ? "high_load"
-              : "baseline",
-      })),
-      recommendation: {
-        title: recommendationTitle,
-        summary: recommendationSummary,
-        evidence: [
-          `相较 Rule Only，混合模式准确性变化 ${hybridAccuracyGainVsRule >= 0 ? "+" : "-"}${Math.abs(hybridAccuracyGainVsRule).toFixed(1)} 个点。`,
-          `相较 Rule Only，混合模式覆盖率变化 ${hybridRecallGainVsRule >= 0 ? "+" : "-"}${Math.abs(hybridRecallGainVsRule).toFixed(1)} 个点。`,
-          latencyEvidence,
-        ],
-        footnote: "数据来自当前窗口期真实日志与 analysis_results 聚合，页面本身不触发三模式重跑。",
-      },
-      insights: [
-        `${bestAccuracyMode?.modeLabel ?? "Hybrid"} 在当前窗口期判断质量表现最佳。`,
-        `${hybridMode.modeLabel} 在覆盖率与成本之间更均衡，更适合作为默认方案。`,
-        `${highestLatencyMode?.modeLabel ?? "Model Only"} 平均延迟更高，建议配合规则前置过滤。`,
-      ],
-      pendingReviewCount: pendingReviewsResult.count ?? 0,
-    });
-  }
-
   if (view === "analyses" || view === "history-logs") {
     const [logsResult, errorsResult, analysesResult, logsStatsResult, knowledgeCountResult] = await Promise.all([
       supabase
@@ -2179,6 +1867,14 @@ function inferTemplateFormatFromFileName(fileName: string) {
   if (ext === "txt" || ext === "md") return "TEXT";
   return ext ? ext.toUpperCase() : "FILE";
 }
+
+
+
+
+
+
+
+
 
 
 

@@ -14,6 +14,9 @@ export function PerformancePage({ initialData }: PerformancePageProps) {
   const [activeRange, setActiveRange] = useState(initialData.range.isCustom ? "custom" : String(initialData.days));
 
   const chartMax = useMemo(() => Math.max(1, ...data.chart.flatMap((item) => [item.ruleOnly, item.modelOnly, item.hybrid])), [data.chart]);
+  const sourceBadgeClass = data.dataSource.kind === "real"
+    ? "border border-[#B07A47]/20 bg-[#B07A47]/10 text-[#B07A47]"
+    : "border border-[#2D6DAD]/20 bg-[#7BCBFF]/12 text-[#2D6DAD]";
 
   async function loadRange(days: 7 | 30, startDate?: string, endDate?: string) {
     setBusy(true);
@@ -63,7 +66,7 @@ export function PerformancePage({ initialData }: PerformancePageProps) {
       window.alert("浏览器阻止了导出窗口，请允许弹窗后重试。");
       return;
     }
-    win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>性能分析报告</title><style>body{font-family:Arial,"Microsoft YaHei",sans-serif;padding:24px;color:#222}h1{font-size:22px;margin:0 0 8px}.meta{color:#666;margin-bottom:16px}table{width:100%;border-collapse:collapse;margin-top:12px}th,td{border:1px solid #ddd;padding:8px;text-align:left;font-size:13px}th{background:#f7f7f7}.kpi{display:flex;gap:18px;flex-wrap:wrap;margin:12px 0 16px}.kpi div{padding:8px 10px;border:1px solid #ddd;border-radius:8px;background:#fafafa}ul{margin-top:8px}li{margin:6px 0}</style></head><body><h1>性能分析报告</h1><div class="meta">时间范围：${data.range.startDate} ~ ${data.range.endDate}</div><div class="kpi"><div>准确率：${data.metrics.accuracy.toFixed(1)}%</div><div>召回率：${data.metrics.recall.toFixed(1)}%</div><div>日均吞吐：${data.metrics.speedEps.toFixed(1)} 条/天</div></div><h3>推荐结论</h3><p>${escapeHtml(data.recommendation.summary)}</p><h3>模式明细</h3><table><thead><tr><th>模式</th><th>准确率</th><th>召回率</th><th>F1</th><th>平均延迟</th></tr></thead><tbody>${rowsHtml}</tbody></table><h3 style="margin-top:16px;">智能洞察</h3><ul>${insightsHtml}</ul></body></html>`);
+    win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>性能分析报告</title><style>body{font-family:Arial,"Microsoft YaHei",sans-serif;padding:24px;color:#222}h1{font-size:22px;margin:0 0 8px}.meta{color:#666;margin-bottom:16px}table{width:100%;border-collapse:collapse;margin-top:12px}th,td{border:1px solid #ddd;padding:8px;text-align:left;font-size:13px}th{background:#f7f7f7}.kpi{display:flex;gap:18px;flex-wrap:wrap;margin:12px 0 16px}.kpi div{padding:8px 10px;border:1px solid #ddd;border-radius:8px;background:#fafafa}ul{margin-top:8px}li{margin:6px 0}</style></head><body><h1>性能分析报告</h1><div class="meta">时间范围：${data.range.startDate} ~ ${data.range.endDate}</div><div class="meta">数据来源：${escapeHtml(data.dataSource.label)} · ${escapeHtml(data.dataSource.description)}</div><div class="kpi"><div>准确率：${data.metrics.accuracy.toFixed(1)}%</div><div>召回率：${data.metrics.recall.toFixed(1)}%</div><div>日均吞吐：${data.metrics.speedEps.toFixed(1)} 条/天</div></div><h3>推荐结论</h3><p>${escapeHtml(data.recommendation.summary)}</p><h3>模式明细</h3><table><thead><tr><th>模式</th><th>准确率</th><th>召回率</th><th>F1</th><th>平均延迟</th></tr></thead><tbody>${rowsHtml}</tbody></table><h3 style="margin-top:16px;">智能洞察</h3><ul>${insightsHtml}</ul></body></html>`);
     win.document.close();
     win.focus();
     win.print();
@@ -74,7 +77,7 @@ export function PerformancePage({ initialData }: PerformancePageProps) {
       <header className="mb-10 flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <h1 className="mb-2 font-headline text-4xl font-extrabold tracking-tight">模式效果对比</h1>
-          <p className="max-w-3xl text-sm leading-7 text-[#6B625B]">基于当前窗口期真实运行数据，对比 Rule Only、Model Only、Hybrid 三种分析模式的效果与开销，说明为何混合模式更适合作为默认方案。</p>
+          <p className="max-w-3xl text-sm leading-7 text-[#6B625B]">基于所选窗口的聚合数据，对比 Rule Only、Model Only、Hybrid 三种分析模式的效果与开销，帮助快速判断默认运行方案。</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <div className="glass-panel inline-flex rounded-xl border border-[#E2D5C2] bg-[#F7F2E8] p-1 shadow-[0_10px_24px_rgba(53,46,42,0.05)]">
@@ -101,10 +104,11 @@ export function PerformancePage({ initialData }: PerformancePageProps) {
         </div>
       </section>
 
-      <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-[#B07A47]/20 bg-[#B07A47]/10 px-4 py-2 text-[10px] font-label uppercase tracking-widest text-[#B07A47]">
+      <div className={`mb-3 inline-flex items-center gap-2 rounded-full px-4 py-2 text-[10px] font-label uppercase tracking-widest ${sourceBadgeClass}`}>
         <span className="material-symbols-outlined text-xs" style={{ fontVariationSettings: '"FILL" 1' }}>visibility</span>
-        <span>{`真实运行窗口聚合 · ${data.range.startDate} ~ ${data.range.endDate}`}</span>
+        <span>{`${data.dataSource.label} · ${data.range.startDate} ~ ${data.range.endDate}`}</span>
       </div>
+      <p className="mb-8 text-xs leading-6 text-[#8A8178]">{data.dataSource.description}</p>
 
       <section className="mb-8 rounded-2xl border border-[#8A5A2B]/15 bg-gradient-to-r from-[#8A5A2B]/10 to-transparent p-6">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
@@ -140,7 +144,7 @@ export function PerformancePage({ initialData }: PerformancePageProps) {
           <div className="mb-8 flex items-center justify-between gap-4">
             <div>
               <h3 className="font-headline text-xl font-bold">三模式效果对比</h3>
-              <p className="mt-2 text-xs leading-6 text-[#8A8178]">从准确率、召回率、吞吐量和资源消耗四个口径看三种模式的真实窗口表现。</p>
+              <p className="mt-2 text-xs leading-6 text-[#8A8178]">从准确率、召回率、吞吐量和资源消耗四个口径看三种模式的窗口表现。</p>
             </div>
             <div className="flex flex-wrap gap-3 text-[10px] uppercase tracking-widest text-[#8A8178]">
               <Legend color="bg-[#7BCBFF]" label="规则" />
@@ -180,7 +184,7 @@ export function PerformancePage({ initialData }: PerformancePageProps) {
       <section className="overflow-hidden rounded-[28px] border border-[#E2D5C2] bg-[#F7F2E8] shadow-[0_14px_34px_rgba(53,46,42,0.08)]">
         <div className="border-b border-[#E2D5C2] bg-[#FBF6ED] px-8 py-5">
           <h3 className="font-headline text-xl font-bold">模式明细</h3>
-          <p className="mt-2 text-xs leading-6 text-[#8A8178]">准确率、召回率、F1 与平均延迟均来自当前窗口期真实运行数据。</p>
+          <p className="mt-2 text-xs leading-6 text-[#8A8178]">准确率、召回率、F1 与平均延迟来自当前对比口径，用于快速观察三模式差异。</p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-left">

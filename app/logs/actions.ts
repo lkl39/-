@@ -121,24 +121,26 @@ export async function deleteLogAction(formData: FormData) {
     return encodedRedirect("error", "/", "请先登录后再管理日志。");
   }
 
+  const { data: deletedLog, error } = await supabase
+    .from("logs")
+    .delete()
+    .eq("id", logId)
+    .eq("user_id", user.id)
+    .select("id")
+    .maybeSingle();
+
+  if (error || !deletedLog) {
+    return encodedRedirect("error", "/dashboard/tasks", error?.message ?? "日志删除未生效，请刷新后重试。");
+  }
+
   if (storagePath) {
     const { error: storageError } = await supabase.storage
       .from(logBucket)
       .remove([storagePath]);
 
     if (storageError) {
-      return encodedRedirect("error", "/dashboard/tasks", storageError.message);
+      return encodedRedirect("success", "/dashboard/tasks", "日志已删除，但原文件清理失败。");
     }
-  }
-
-  const { error } = await supabase
-    .from("logs")
-    .delete()
-    .eq("id", logId)
-    .eq("user_id", user.id);
-
-  if (error) {
-    return encodedRedirect("error", "/dashboard/tasks", error.message);
   }
 
   revalidatePath("/dashboard");

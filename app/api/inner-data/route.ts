@@ -1838,18 +1838,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: logError?.message ?? "日志不存在" }, { status: 404 });
     }
 
+    const { data: deletedLog, error: deleteError } = await supabase
+      .from("logs")
+      .delete()
+      .eq("id", logId)
+      .eq("user_id", user.id)
+      .select("id")
+      .maybeSingle();
+
+    if (deleteError || !deletedLog) {
+      return NextResponse.json({ error: deleteError?.message ?? "日志删除未生效，请刷新后重试。" }, { status: 400 });
+    }
+
     const storagePath = String(logRow.storage_path ?? "").trim();
     if (storagePath) {
       const { logBucket } = getSupabaseEnv();
       const { error: storageError } = await supabase.storage.from(logBucket).remove([storagePath]);
       if (storageError) {
-        return NextResponse.json({ error: storageError.message }, { status: 400 });
+        return NextResponse.json({ ok: true, logId, warning: storageError.message });
       }
-    }
-
-    const { error } = await supabase.from("logs").delete().eq("id", logId).eq("user_id", user.id);
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
     return NextResponse.json({ ok: true, logId });

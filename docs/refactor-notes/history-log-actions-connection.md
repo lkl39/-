@@ -12,6 +12,10 @@
 - 未修改 `logs` 相关表字段口径。
 - 未调整历史日志存档页整体结构与视觉层级。
 
+## 后续补充
+- 排查到 `public.logs` 缺少 `DELETE` RLS 策略，导致已登录用户在 UI 中发起删除时会被数据库权限拦截。
+- 已补充 `logs_delete_own` 策略，条件为 `auth.uid() = user_id`，只允许用户删除自己的日志。
+
 ## 验证
 - `npx eslint components/dashboard/pages/tasks/tasks-page.tsx` 通过。
 - `npm run lint` 未通过，但失败原因来自仓库中其他已有文件的存量问题，不是本次改动引入。

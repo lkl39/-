@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useMemo } from "react";
+import { forwardRef, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { AnalysisReportData } from "@/lib/dashboard/analysis-report";
 
@@ -10,7 +10,9 @@ type AnalysisReportPageProps = {
 
 export function AnalysisReportPage({ data }: AnalysisReportPageProps) {
   const router = useRouter();
+  const pdfExportRef = useRef<HTMLDivElement | null>(null);
   const isProcessing = data.log.status === "processing";
+  const [exportingPdf, setExportingPdf] = useState(false);
   const confidencePercent = Math.round((data.summary.avgConfidence || 0) * 100);
   const totalRisk = Math.max(1, data.riskDistribution.high + data.riskDistribution.medium + data.riskDistribution.low);
 
@@ -63,17 +65,71 @@ export function AnalysisReportPage({ data }: AnalysisReportPageProps) {
     URL.revokeObjectURL(url);
   }
 
-  function exportPdf() {
-    const printWindow = window.open("", "_blank", "width=960,height=720");
-    if (!printWindow) {
-      window.alert("浏览器拦截了导出窗口，请允许弹窗后重试。");
+  async function exportPdf() {
+    if (exportingPdf) {
       return;
     }
 
-    printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>分析报告</title><style>body{font-family:Arial,"Microsoft YaHei",sans-serif;padding:24px;color:#222}h1,h2{margin:0 0 12px}h2{margin-top:24px}table{width:100%;border-collapse:collapse;margin-top:8px}th,td{border:1px solid #ddd;padding:8px;text-align:left;font-size:13px}th{background:#f7f7f7}pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:12px;border-radius:8px}</style></head><body><h1>日志分析报告</h1><p>报告ID：${data.summary.reportId}</p><p>日志文件：${data.log.fileName}</p><p>分析时间：${formatDateTime(data.log.createdAt)}</p><h2>根因分析</h2><p>${escapeHtml(data.summary.topCause)}</p><h2>问题明细</h2>${data.detailRows.map((item) => `<section style="margin-bottom:18px"><h3>${escapeHtml(item.type)} / ${escapeHtml(item.riskLabel)}</h3><p><strong>建议：</strong>${escapeHtml(item.suggestion)}</p><pre>${escapeHtml(item.snippet || "无日志片段")}</pre></section>`).join("")}</body></html>`);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
+    const exportNode = pdfExportRef.current;
+    if (!exportNode) {
+      window.alert("PDF 导出模板尚未准备完成，请稍后重试。");
+      return;
+    }
+
+    setExportingPdf(true);
+    try {
+      if (document.fonts?.ready) {
+        await document.fonts.ready;
+      }
+
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+        import("html2canvas"),
+        import("jspdf"),
+      ]);
+
+      if (!html2canvas || !jsPDF) {
+        window.alert("PDF 导出依赖不可用，请稍后重试。");
+        return;
+      }
+
+      const canvas = await html2canvas(exportNode, {
+        backgroundColor: "#ffffff",
+        scale: Math.max(2, window.devicePixelRatio || 1),
+        useCORS: true,
+      });
+
+      const imageData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({
+        orientation: "p",
+        unit: "pt",
+        format: "a4",
+      });
+
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 24;
+      const printableWidth = pageWidth - margin * 2;
+      const printableHeight = pageHeight - margin * 2;
+      const imageHeight = (canvas.height * printableWidth) / canvas.width;
+
+      let remainingHeight = imageHeight;
+
+      pdf.addImage(imageData, "PNG", margin, margin, printableWidth, imageHeight, undefined, "FAST");
+      remainingHeight -= printableHeight;
+
+      while (remainingHeight > 0) {
+        pdf.addPage();
+        const offsetY = margin - (imageHeight - remainingHeight);
+        pdf.addImage(imageData, "PNG", margin, offsetY, printableWidth, imageHeight, undefined, "FAST");
+        remainingHeight -= printableHeight;
+      }
+
+      pdf.save(`${sanitizeFileName(data.log.fileName)}-分析报告.pdf`);
+    } catch {
+      window.alert("PDF 导出失败，请稍后重试。");
+    } finally {
+      setExportingPdf(false);
+    }
   }
 
   function submitReview() {
@@ -115,9 +171,14 @@ export function AnalysisReportPage({ data }: AnalysisReportPageProps) {
             <span className="material-symbols-outlined text-sm">description</span>
             导出 Word
           </button>
-          <button type="button" onClick={exportPdf} className="glass-card inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm text-[#352E2A] transition-colors hover:bg-[#EFE4D2]">
+          <button
+            type="button"
+            onClick={exportPdf}
+            disabled={exportingPdf}
+            className="glass-card inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm text-[#352E2A] transition-colors hover:bg-[#EFE4D2] disabled:cursor-not-allowed disabled:opacity-60"
+          >
             <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
-            导出 PDF
+            {exportingPdf ? "导出中..." : "导出 PDF"}
           </button>
           <button type="button" onClick={submitReview} className="inline-flex items-center gap-2 rounded-lg border border-[#8A5A2B]/30 bg-[#8A5A2B]/12 px-4 py-2 text-sm font-bold text-[#8A5A2B] transition-all hover:bg-[#8A5A2B]/20">
             <span className="material-symbols-outlined text-sm">assignment_turned_in</span>
@@ -254,6 +315,16 @@ export function AnalysisReportPage({ data }: AnalysisReportPageProps) {
           <div className="rounded-2xl border border-dashed border-[#D8C7AE] bg-[#FBF6ED] px-6 py-12 text-center text-sm text-[#8A8178]">暂无问题详情数据</div>
         )}
       </section>
+
+      <div className="pointer-events-none fixed left-[-10000px] top-0">
+        <PdfExportSheet
+          ref={pdfExportRef}
+          data={data}
+          confidencePercent={confidencePercent}
+          totalRisk={totalRisk}
+          riskItems={riskItems}
+        />
+      </div>
     </div>
   );
 }
@@ -277,21 +348,150 @@ function SummaryCard({ label, value, hint, accent }: { label: string; value: str
   );
 }
 
+type PdfExportSheetProps = {
+  data: AnalysisReportData;
+  confidencePercent: number;
+  totalRisk: number;
+  riskItems: Array<{ label: string; count: number; color: string }>;
+};
+
+const PdfExportSheet = forwardRef<HTMLDivElement, PdfExportSheetProps>(function PdfExportSheet(
+  { data, confidencePercent, totalRisk, riskItems },
+  ref,
+) {
+  return (
+    <div ref={ref} className="w-[794px] bg-white px-10 py-8 text-[#222222]">
+      <header className="border-b border-[#E5E7EB] pb-5">
+        <h1 className="text-3xl font-bold">日志分析报告</h1>
+        <div className="mt-3 space-y-1 text-sm text-[#4B5563]">
+          <p>{`报告 ID：${data.summary.reportId}`}</p>
+          <p>{`日志文件：${data.log.fileName}`}</p>
+          <p>{`分析时间：${formatDateTime(data.log.createdAt)}`}</p>
+          <p>{`平均置信度：${confidencePercent}%`}</p>
+        </div>
+      </header>
+
+      <section className="mt-6">
+        <h2 className="text-lg font-bold">报告摘要</h2>
+        <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+          <PdfMetric label="问题总数" value={String(data.summary.totalIssues)} />
+          <PdfMetric label="高风险问题" value={String(data.summary.highRiskCount)} />
+          <PdfMetric label="主要异常类型" value={data.summary.topType} />
+          <PdfMetric label="建议复核" value={data.summary.needsReview ? "是" : "否"} />
+        </div>
+      </section>
+
+      <section className="mt-6">
+        <h2 className="text-lg font-bold">风险等级分布</h2>
+        <div className="mt-3 space-y-2 text-sm">
+          {riskItems.map((item) => (
+            <div key={item.label} className="flex items-center justify-between rounded-md bg-[#F9FAFB] px-3 py-2">
+              <span>{item.label}</span>
+              <span className="font-medium">{`${item.count} (${Math.round((item.count / totalRisk) * 100)}%)`}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="mt-6">
+        <h2 className="text-lg font-bold">问题类型分布</h2>
+        <div className="mt-3 overflow-hidden rounded-lg border border-[#E5E7EB]">
+          <table className="w-full border-collapse text-left text-sm">
+            <thead className="bg-[#F9FAFB]">
+              <tr>
+                <th className="border-b border-[#E5E7EB] px-3 py-2">类型</th>
+                <th className="border-b border-[#E5E7EB] px-3 py-2">数量</th>
+                <th className="border-b border-[#E5E7EB] px-3 py-2">占比</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.problemTypes.length > 0 ? (
+                data.problemTypes.map((item) => (
+                  <tr key={item.name}>
+                    <td className="border-b border-[#E5E7EB] px-3 py-2">{item.name}</td>
+                    <td className="border-b border-[#E5E7EB] px-3 py-2">{item.count}</td>
+                    <td className="border-b border-[#E5E7EB] px-3 py-2">{`${item.percent}%`}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={3} className="px-3 py-3 text-[#6B7280]">暂无问题类型分布数据</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="mt-6">
+        <h2 className="text-lg font-bold">根因分析</h2>
+        <div className="mt-3 rounded-lg bg-[#F9FAFB] px-4 py-3 text-sm leading-7">
+          {data.summary.topCause}
+        </div>
+      </section>
+
+      <section className="mt-6">
+        <h2 className="text-lg font-bold">优先建议</h2>
+        <div className="mt-3 rounded-lg bg-[#F9FAFB] px-4 py-3 text-sm leading-7">
+          {data.summary.topSuggestion}
+        </div>
+      </section>
+
+      <section className="mt-6">
+        <h2 className="text-lg font-bold">问题明细</h2>
+        <div className="mt-3 space-y-4">
+          {data.detailRows.length > 0 ? (
+            data.detailRows.map((item) => (
+              <article key={item.id} className="overflow-hidden rounded-lg border border-[#E5E7EB]">
+                <div className="border-b border-[#E5E7EB] bg-[#F9FAFB] px-4 py-3">
+                  <div className="flex items-center justify-between gap-4">
+                    <h3 className="text-base font-semibold">{item.type}</h3>
+                    <span className="text-xs font-medium">{`${item.riskLabel} · ${Math.round(item.confidence * 100)}%`}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-[#6B7280]">{`事件 ID ${item.incidentId} · 行号 ${item.lineNumber}`}</p>
+                </div>
+                <div className="space-y-3 px-4 py-3 text-sm">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#6B7280]">根因判断</p>
+                    <p className="mt-1 leading-7">{item.cause}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#6B7280]">处理建议</p>
+                    <p className="mt-1 leading-7">{item.suggestion}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#6B7280]">日志片段</p>
+                    <pre className="mt-1 whitespace-pre-wrap break-words rounded-md bg-[#111827] px-3 py-3 text-xs leading-6 text-[#F9FAFB]">{item.snippet || "暂无日志片段"}</pre>
+                  </div>
+                </div>
+              </article>
+            ))
+          ) : (
+            <div className="rounded-md border border-dashed border-[#D1D5DB] px-4 py-4 text-sm text-[#6B7280]">
+              暂无问题详情数据
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+});
+
+function PdfMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-[#E5E7EB] bg-[#F9FAFB] px-3 py-3">
+      <p className="text-xs uppercase tracking-[0.18em] text-[#6B7280]">{label}</p>
+      <p className="mt-2 text-lg font-semibold text-[#111827]">{value}</p>
+    </div>
+  );
+}
+
 function truncateText(value: string, maxLength: number) {
   return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
 }
 
 function sanitizeFileName(value: string) {
   return String(value || "analysis-report").replace(/[\\/:*?"<>|]/g, "-");
-}
-
-function escapeHtml(value: string) {
-  return String(value)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\"/g, "&quot;")
-    .replace(/'/g, "&#39;");
 }
 
 function formatDateTime(value: string) {

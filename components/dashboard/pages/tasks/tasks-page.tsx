@@ -1,7 +1,8 @@
 ﻿"use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { startTransition, useMemo, useState } from "react";
 import type { TaskHistoryRow, TasksPageData } from "@/lib/dashboard/tasks";
 
 type TasksPageProps = {
@@ -11,11 +12,13 @@ type TasksPageProps = {
 const PAGE_SIZE = 8;
 
 export function TasksPage({ data }: TasksPageProps) {
+  const router = useRouter();
   const [rows, setRows] = useState(data.rows);
   const [keyword, setKeyword] = useState("");
   const [range, setRange] = useState("最近 7 天");
   const [currentPage, setCurrentPage] = useState(1);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{ tone: "success" | "error"; message: string } | null>(null);
 
   const filteredRows = useMemo(() => {
     return rows.filter((row) => {
@@ -37,6 +40,7 @@ export function TasksPage({ data }: TasksPageProps) {
 
   async function handleDownload(logId: string) {
     if (!logId || busyId) return;
+    setFeedback(null);
     setBusyId(logId);
     try {
       const response = await fetch("/api/inner-data", {
@@ -45,13 +49,30 @@ export function TasksPage({ data }: TasksPageProps) {
         credentials: "include",
         body: JSON.stringify({ action: "history-download", logId }),
       });
-      const payload = (await response.json().catch(() => null)) as { ok?: boolean; error?: string; downloadUrl?: string } | null;
+      const payload = (await response.json().catch(() => null)) as { ok?: boolean; error?: string; downloadUrl?: string; fileName?: string } | null;
       if (!response.ok || !payload?.downloadUrl) {
         throw new Error(payload?.error || "下载链接生成失败，请稍后重试。");
       }
-      window.open(payload.downloadUrl, "_blank", "noopener,noreferrer");
+
+      const link = document.createElement("a");
+      link.href = payload.downloadUrl;
+      if (payload.fileName) {
+        link.download = payload.fileName;
+      }
+      link.rel = "noopener noreferrer";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      setFeedback({
+        tone: "success",
+        message: `已开始下载${payload.fileName ? `：${payload.fileName}` : "所选日志文件"}。`,
+      });
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "下载失败，请稍后重试。");
+      setFeedback({
+        tone: "error",
+        message: error instanceof Error ? error.message : "下载失败，请稍后重试。",
+      });
     } finally {
       setBusyId(null);
     }
@@ -62,6 +83,7 @@ export function TasksPage({ data }: TasksPageProps) {
     const confirmed = window.confirm(`确认删除“${fileName || "这条历史日志"}”吗？删除后无法恢复。`);
     if (!confirmed) return;
 
+    setFeedback(null);
     setBusyId(logId);
     try {
       const response = await fetch("/api/inner-data", {
@@ -76,9 +98,21 @@ export function TasksPage({ data }: TasksPageProps) {
       }
 
       setRows((current) => current.filter((item) => item.id !== logId));
-      setCurrentPage((page) => Math.max(1, page > 1 && (filteredRows.length - 1) <= (page - 1) * PAGE_SIZE ? page - 1 : page));
+      setCurrentPage((page) => {
+        const nextCount = Math.max(0, filteredRows.length - 1);
+        const nextTotalPages = Math.max(1, Math.ceil(nextCount / PAGE_SIZE));
+        return Math.min(page, nextTotalPages);
+      });
+      setFeedback({
+        tone: "success",
+        message: `已删除${fileName ? `：${fileName}` : "所选历史日志"}。`,
+      });
+      startTransition(() => router.refresh());
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "删除失败，请稍后重试。");
+      setFeedback({
+        tone: "error",
+        message: error instanceof Error ? error.message : "删除失败，请稍后重试。",
+      });
     } finally {
       setBusyId(null);
     }
@@ -167,6 +201,19 @@ export function TasksPage({ data }: TasksPageProps) {
               </button>
             </div>
           </section>
+
+          {feedback ? (
+            <div
+              role="status"
+              className={
+                feedback.tone === "success"
+                  ? "mb-4 rounded-2xl border border-[#BFDDC9] bg-[#E8F4EC] px-4 py-3 text-sm text-[#2F6A42]"
+                  : "mb-4 rounded-2xl border border-[#F4B7C1] bg-[#FFE2E6] px-4 py-3 text-sm text-[#9B1B30]"
+              }
+            >
+              {feedback.message}
+            </div>
+          ) : null}
 
           <section className="overflow-hidden rounded-[28px] border border-[#E2D5C2] bg-[#F7F2E8] shadow-[0_14px_34px_rgba(53,46,42,0.08)]">
             <div className="overflow-x-auto">
@@ -338,6 +385,7 @@ type TaskRowProps = {
 function TaskRow({ row, busy, onDownload, onDelete }: TaskRowProps) {
   const completed = row.statusLabel === "已完成";
   const failed = row.statusLabel === "已失败";
+  const canDownload = Boolean(row.storagePath);
 
   return (
     <tr className="group transition-colors hover:bg-[#FBF6ED]">
@@ -391,9 +439,9 @@ function TaskRow({ row, busy, onDownload, onDelete }: TaskRowProps) {
           <button
             type="button"
             onClick={() => onDownload(row.id)}
-            disabled={busy}
-            className="text-[#8A5A2B] transition-all hover:text-[#6D451E] disabled:opacity-40"
-            title="下载日志"
+            disabled={busy || !canDownload}
+            className="text-[#8A5A2B] transition-all hover:text-[#6D451E] disabled:cursor-not-allowed disabled:text-[#B8ADA0] disabled:opacity-60"
+            title={canDownload ? "下载日志" : "该日志没有可下载文件"}
           >
             <span className="material-symbols-outlined text-sm">download</span>
           </button>
